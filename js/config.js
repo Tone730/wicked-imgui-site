@@ -6,7 +6,7 @@ export const CONFIG = {
   // When the Wicked Imgui account server (../server) hosts this folder it sets this to '/' by itself.
   apiBase: '',
   // Release metadata now lives in js/release.js — the Downloads page reads from there.
-  version: '2.4.0',
+  version: '2.5.0',
   releaseDate: '2026-11-19',
   // ---------------------------------------------------------------- updates
   // Self-hosted generic update feed (free). tools\attach-release.ps1 writes both
@@ -18,7 +18,7 @@ export const CONFIG = {
     channel: 'stable',
     feedUrl: 'downloads/latest.json',
     electronFeedUrl: 'downloads/latest.yml',
-    baseUrl: 'https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.4.0/',
+    baseUrl: 'https://github.com/Tone730/wicked-imgui-releases/releases/latest/download/',
     checkOnLaunch: true,
   },
   pro: { price: '$25', period: 'per month' },

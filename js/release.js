@@ -3,18 +3,18 @@
 export const RELEASE = {
   // false until the final portable ZIP is attached; the page shows setup instructions while false.
   attached: true,
-  version: '2.4.0',
+  version: '2.5.0',
   date: '2026-11-19',
-  bytes: 168518881,
+  bytes: 168524336,
   size: '160.7 MB',
-  sha256: '681a1b3050e59eaf7669a340e127720103c9882b71284b25d5a1b92939712a66',
-  sha512: 'zfbtA7dyNS0JutMSgoaZTRWoN1DHDxhKGp/aE0EhhRhd8We5N3kZzpxxeVoMILrgMafBiV6Qd4B7r6NIAZirZg==',
+  sha256: 'c7b65e19c44890f65f8186b34598dda14e5f851bc8247e1ce80f01d6a9b0d2ed',
+  sha512: 'iRXZ3Xgs6tVFtD5Z7u8zzKfGzJw5ZnJQmqamxmWrdqme+G7Rq3W86I3RyTXUe3RhGQb5iXCzxInQJKAl+ZyKsQ==',
   channel: 'stable',
   feedUrl: 'downloads/latest.json',
   electronFeedUrl: 'downloads/latest.yml',
-  notes: 'Offline v2.4 expansion: paste-menu understanding, 4 premade templates, style learning and smart prebuilds, an offline community library with import/export packs, generic loader profiles, embedded image assets, expanded fonts/text styles and webhook/Discord actions. Fully local - no sign-in, key or installer required.',
+  notes: 'Added 3 faithful premade templates (Kali.dev Loader, Cloudy UI, Givenchy Standalone Menu) built from the attached sources via static analysis, plus matching Kali Dark / Cloudy Light / Givenchy Gold style presets and chainable template actions.',
   // File name inside the downloads/ folder (relative to this site's root).
-  file: 'WickedImgui-Portable-2.4.0.zip',
+  file: 'WickedImgui-Portable-2.5.0.zip',
   kind: 'Portable ZIP — extract and run Wicked Imgui Maker.exe',
   changes: [
     ['Vision', 'Paste C++/C#/Rust/JS/JSON menu source and get a fully editable project mockup. Controls, tabs, colours and fonts are recognised from static text only — pasted code is never executed.'],

@@ -163,6 +163,20 @@ function Resolve-PublishVersion {
   if ($updated.Count) {
     Write-Host "Synced version $target to: $($updated -join ', ')" -ForegroundColor Yellow
   }
+
+  # Keep the update feed version-agnostic. A version-pinned baseUrl makes every
+  # newly built app read the PREVIOUS release's latest.json and miss updates.
+  $latestAlias = 'https://github.com/Tone730/wicked-imgui-releases/releases/latest/download/'
+  $cfgText = [IO.File]::ReadAllText($configJs)
+  $normalizeFeed = [System.Text.RegularExpressions.MatchEvaluator] {
+    param($m) return $m.Groups[1].Value + $latestAlias + $m.Groups[2].Value
+  }
+  $normalized = [regex]::Replace($cfgText, "(?m)^(\s*baseUrl:\s*')[^']*(')", $normalizeFeed)
+  if ($normalized -ne $cfgText) {
+    [IO.File]::WriteAllText($configJs, $normalized, [Text.UTF8Encoding]::new($false))
+    Write-Host "Normalized update baseUrl to the latest-release alias" -ForegroundColor Yellow
+  }
+
   return $target
 }
 
