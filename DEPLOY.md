@@ -2,7 +2,7 @@
 
 Everything here is **configuration and code**. It does not pretend accounts, payments or email are live: with no server URL and no checkout URLs the dashboard remains in the explicit browser-only preview (`test / test` = Pro, `free / free` = Free).
 
-The release ZIP and update feed are already published on [GitHub Releases](https://github.com/Tone730/wicked-imgui-releases/releases/tag/v2.2.1). This document covers the **account server**, **static hosting**, **payments** and the remaining operational pieces.
+The release ZIP and update feed are already published on [GitHub Releases](https://github.com/Tone730/wicked-imgui-releases/releases/tag/v2.4.0). This document covers the **account server**, **static hosting**, **payments** and the remaining operational pieces.
 
 ---
 

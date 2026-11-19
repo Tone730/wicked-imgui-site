@@ -211,7 +211,7 @@ be an HTTPS URL ending in `/downloads` or a GitHub Releases tag URL such as
 - `downloads\latest.json` — `version`, `date`, `channel`, `bytes`, `sha256`, `sha512`, `file`, `url`, `notes`. The dashboard uses it for "Check for updates".
 - `downloads\latest.yml` — `version`, `releaseDate`, `path`, `sha512`, `size`. This is the standard generic-provider manifest for Electron updaters.
 
-The app reads the feed from the self-hosted URL configured in its build (`app\update-feed.json`, or `WICKED_UPDATE_URL` at runtime). The current shipped build has the public GitHub Releases feed URL baked in: `https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.1/latest.json`. Run `tools\set-update-host.ps1 -BaseUrl <public-url>` to bake a different feed URL into the next package.
+The app reads the feed from the self-hosted URL configured in its build (`app\update-feed.json`, or `WICKED_UPDATE_URL` at runtime). The current build has the public GitHub Releases feed URL baked in: `https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.4.0/latest.json`. Run `tools\set-update-host.ps1 -BaseUrl <public-url>` to bake a different feed URL into the next package.
 
 Because the release is a portable ZIP, the app verifies the published SHA-256/SHA-512 and opens the download folder for manual extraction; it does not claim a silent background install. A future signed installer with an Ed25519 signature can use the existing Wicked Update launcher for one-click install. The dashboard shows the channel, current version and update status honestly in preview mode. Run `node C:\Users\Wick\WickedImguiMaker\test-updater.js` to exercise the app updater against the attached release.
 
@@ -246,7 +246,7 @@ Two supported ways to go live, both honest when unconfigured:
 
 ## Going live 3: licensing (free)
 
-The included `server/` is a dependency-free Node.js service that now handles accounts, sessions, billing (generic + Payhip webhooks) and HMAC-signed license keys with the 3-device limit. `node server/test.js` passes 52/52 checks. Enable it with:
+The included `server/` is a dependency-free Node.js service that handles accounts, sessions, billing (generic + Payhip webhooks), versioned legal acceptance, two credit ledgers, an admin API with audit logs and HMAC-signed license keys with per-key device limits. `node server/test.js` passes 67/67 checks. Enable it with:
 
 ```js
 // js/config.js
@@ -255,6 +255,17 @@ license: { mode: 'remote', url: 'http://127.0.0.1:8787' },
 
 Then the Redeem form validates and activates keys through `js/license.js`. Other free options: Keygen Dev (100 active users), Keygen CE (self-hosted) and Keygate (open source). Full details in [FREE-STACK.md](FREE-STACK.md) §4.
 
+## Accounts, credits and admin
+
+Signup records a versioned acceptance of the Terms and Privacy Policy (`CONFIG.legal.termsVersion` / `privacyVersion`, stored with an `acceptedAt` timestamp). The Terms include an NDA, final-sale/no-refund wording, Florida law and the individual-developer identity. All three contact inboxes are listed in `LEGAL-REVIEW.md`.
+
+The dashboard has a **Credits** view with two separate balances:
+
+- **Access credits** buy Pro time or mint a transferable, one-redemption Pro key with a device-seat cap.
+- **AI credits** are a server-side ledger consumed only by Wicked-hosted AI actions through `POST /v1/ai/usage` with an idempotency key. The local full-access Maker stays offline and uses the user's own provider keys, so it never spends this balance.
+
+The standalone `admin.html` panel (linked from the sidebar for admins only) covers users, keys, manual sales, announcements and a filterable activity log. Admin access is by account role (`ADMIN_EMAILS`) or a runtime-entered `ADMIN_TOKEN` held only in browser session storage. If neither is configured, all admin routes are denied. Every action is written to `AUDIT_FILE`. Full setup in [DEPLOY.md](DEPLOY.md).
+
 ## What I still need from you
 
 1. ~~**Checkout URLs / provider account** —~~ Done: Payhip Membership product published (WicksLab, `i28og`) with `$25/month` and `$108/year` plans. Both direct checkout URLs and the portal URL are in `.env` and `js/checkout-links.js` (see [PAYHIP.md](PAYHIP.md)). Still open: `PAYHIP_API_KEY` on a hosted API and the webhook for automatic in-app upgrades.
@@ -262,15 +273,15 @@ Then the Redeem form validates and activates keys through `js/license.js`. Other
 3. **Email delivery endpoint** — without one, new accounts are marked verified and no confirmation email is faked; reset tokens are generated but not sent until `MAIL_WEBHOOK_URL` is configured.
 4. **A code-signing certificate** — see [SIGNING.md](../WickedImguiMaker/SIGNING.md) and the draft [code signing policy](code-signing-policy.html). Current builds are intentionally unsigned.
 5. **Lawyer review** — [LEGAL-REVIEW.md](LEGAL-REVIEW.md) lists every clause that needs checking before publication.
-6. ~~**Public hosting** —~~ Done. The ZIP, `latest.json`, and `latest.yml` are published on [GitHub Releases](https://github.com/Tone730/wicked-imgui-releases/releases/tag/v2.2.1). To move hosts later, run `tools\set-update-host.ps1 -BaseUrl <new-url>` and upload the three printed files.
-7. ~~**Public update-feed URL** —~~ Done. `CONFIG.updates.baseUrl` and the app build both point at the public GitHub Releases feed for v2.2.1.
+6. ~~**Public hosting** —~~ Done. The ZIP, `latest.json`, and `latest.yml` are published on [GitHub Releases](https://github.com/Tone730/wicked-imgui-releases/releases/tag/v2.4.0). To move hosts later, run `tools\set-update-host.ps1 -BaseUrl <new-url>` and upload the three printed files.
+7. ~~**Public update-feed URL** —~~ Done. `CONFIG.updates.baseUrl` and the app build both point at the public GitHub Releases feed for v2.4.0.
 
 ## Verification
 
 - REA `capture_browser_scenario` confirmed the rendered accessibility tree for the Dashboard and Downloads pages.
 - In-app browser: all 6 pages load with zero console errors; 53/53 internal links resolve; zero failed network requests.
 - All 6 dashboard views, login, signup, reset, upgrade, redeem, device sign-out, settings forms, dialogs, menu, FAQ accordion, privacy anchors, invoice rendering and file attach were tested successfully.
-- The account + license server passes 52/52 smoke tests (`cd server && node test.js`), including Payhip webhooks.
+- The account + license server passes 67/67 smoke tests (`cd server && node test.js`), including legal acceptance, admin auth, credits, grants, key limits, manual sales, announcements, audit logs and Payhip webhooks.
 - Preview mode is unchanged; all live behaviour is opt-in via `apiBase`, checkout links or server env vars.
 
 ## One-command publish
