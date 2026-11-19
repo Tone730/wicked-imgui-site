@@ -5,6 +5,16 @@ Every `- [Tag] text` bullet becomes one `changes` entry in `js/release.js`.
 Keep the bullets on a single line. When a section for the version being published
 does not exist, the pipeline keeps the existing `changes` array unchanged.
 
+## [2.3.0] - 2026-11-19
+
+- [Menus] Added 8 reusable overlay-menu presets (Trainer, Dashboard, Sidebar, Tabbed, HUD, Settings, Combat, Minimal) that attach to any project and generate real pages/widgets plus a menu source file for C++, C# and Rust.
+- [Menus] Added a Menus workspace with a custom menu editor and a local library that can be saved, re-applied, exported and imported as portable JSON.
+- [Target] Added offline PE import analysis for loader projects: detects DirectX 9/11/12, OpenGL, Vulkan, Unity/Unreal/Source/Godot hints and XInput/DirectInput without running the executable.
+- [Target] Added a Target tab for loader projects with manual overrides; detected settings flow into a generated `loader.config.json` so exports are pre-configured for the game.
+- [Animation] Added 4 entrance animations (Pop, Bounce, Zoom, Pulse) and 6 animated backgrounds (Vortex, Sparks, Scanlines, Glitch, Tunnel, DNA).
+- [Export] Generated menu code and loader config now compile against the offline C++/C#/Rust compatibility stubs; integration notes explain how to draw the menu each frame.
+- [Quality] Functional regression suite expanded to 483 checks; static validation, updater tests and 52 server tests all pass.
+
 ## [2.2.1] - 2026-11-19
 
 - [Fix] Fixed an atomic config-save race on first launch that could fail with `ENOENT` when two writes reused `config.json.tmp`.
