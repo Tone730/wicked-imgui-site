@@ -473,6 +473,15 @@ function Invoke-PublishOnce {
   Write-Step 'Verifying release artifacts'
   $result = Assert-Release -Version $target
 
+  # 7b. deep integrity: ZIP layout, licence notices, embedded ASAR record.
+  Write-Step 'Verifying ZIP contents and embedded ASAR integrity'
+  $verifyScript = Join-Path $PSScriptRoot 'verify_release.py'
+  if (-not (Test-Path -LiteralPath $verifyScript -PathType Leaf)) {
+    throw "Deep verification script is missing: $verifyScript"
+  }
+  & python $verifyScript --version $target
+  if ($LASTEXITCODE -ne 0) { throw "Deep release verification failed for $target" }
+
   # 8. build history
   New-Item -ItemType Directory -Force -Path $downloads | Out-Null
   $entry = [ordered]@{
