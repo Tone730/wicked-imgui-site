@@ -14,5 +14,5 @@ adds a `README-FIRST.txt`, creates `WickedImgui-Portable-<version>.zip`, then ca
 You can also manually put a build in this folder and run:
 
 ```
-powershell -File tools\attach-release.ps1 -Zip "downloads\your-build.zip" -Version "2.2.0"
+powershell -File tools\attach-release.ps1 -Zip "downloads\your-build.zip" -Version "2.2.1"
 ```

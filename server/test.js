@@ -274,8 +274,8 @@ const authPost = (p, body, cookie) => post(p, body, undefined, cookie);
       ACCOUNTS_FILE: files3[1],
       BILLING_PROVIDER: 'payhip',
       PAYHIP_API_KEY: 'test-payhip-key',
-      CHECKOUT_URL_MONTHLY: 'https://payhip.com/buy?link=MONTHLYKEY',
-      CHECKOUT_URL_YEARLY: 'https://payhip.com/buy?link=YEARLYKEY',
+      CHECKOUT_URL_MONTHLY: 'https://payhip.com/b/MONTHLYKEY',
+      CHECKOUT_URL_YEARLY: 'https://payhip.com/b/YEARLYKEY',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -287,7 +287,7 @@ const authPost = (p, body, cookie) => post(p, body, undefined, cookie);
   }
   const phBuyer = await post('/v1/auth/register', { name: 'Payhip Buyer', email: 'payhip@example.com', password: 'a-very-long-password' });
   const phCheckout = await authPost('/v1/billing/checkout', { interval: 'year' }, phBuyer.cookie);
-  check('Payhip checkout URL returned', phCheckout.status === 200 && phCheckout.body.url === 'https://payhip.com/buy?link=YEARLYKEY');
+  check('Payhip checkout URL returned', phCheckout.status === 200 && phCheckout.body.url === 'https://payhip.com/b/YEARLYKEY');
 
   const phSig = crypto.createHash('sha256').update('test-payhip-key').digest('hex');
   const sendPayhip = async (event) => fetch(BASE + '/v1/billing/webhook', {

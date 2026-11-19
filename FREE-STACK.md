@@ -16,12 +16,12 @@ Everything below has a **$0/month entry option**. "Free" usually means no monthl
 | **PayPal.me** | $0 | Standard PayPal fees | No | Simple fallback for buyers who refuse other processors. |
 | Stripe Managed Payments | $0 | 3.5% + Stripe processing | Yes — Merchant of Record | Built by the ex-Lemon Squeezy team. Not free per sale, but no monthly fee and no tax admin. |
 
-**Recommendation:** start with **Payhip Free** as the primary checkout (hosted subscriptions, webhooks, license keys, 5% + processor) and add **Polar** or a **Ko-fi** tip jar as a second option. See [PAYHIP.md](PAYHIP.md) for the exact setup. Put public links in `.env` (copy `.env.example`) and regenerate `js/checkout-links.js`:
+**Recommendation:** start with **Payhip Free** as the primary checkout (hosted subscriptions, webhooks, 5% + processor) and add **Polar** or a **Ko-fi** tip jar as a second option. See [PAYHIP.md](PAYHIP.md) for the exact setup. Use two **Membership** products (recurring needs Stripe); Payhip has no direct checkout links for memberships, so these are product-page URLs. Put them in `.env` (copy `.env.example`) and regenerate `js/checkout-links.js`:
 
 ```ini
 BILLING_PROVIDER=payhip
-CHECKOUT_URL_MONTHLY=https://payhip.com/buy?link=YOUR_MONTHLY_KEY
-CHECKOUT_URL_YEARLY=https://payhip.com/buy?link=YOUR_YEARLY_KEY
+CHECKOUT_URL_MONTHLY=https://payhip.com/b/YOUR_MONTHLY_KEY
+CHECKOUT_URL_YEARLY=https://payhip.com/b/YOUR_YEARLY_KEY
 CHECKOUT_PORTAL_URL=https://payhip.com/YOUR_STORE
 KOFI_URL=https://ko-fi.com/YOUR_NAME
 ```
@@ -97,7 +97,7 @@ Total monthly cost: **$0** until you have sales. Then the only unavoidable costs
 ## 7. What still needs your input
 
 - Polar / Payhip / Ko-fi / GitHub Sponsors URLs (or accounts to create them).
-- A GitHub repo for Releases (already used for v2.2.0).
+- A GitHub repo for Releases (already used for v2.2.1).
 - A host with persistent storage for the account server if you want it public (`DEPLOY.md`).
 - An email webhook if password-reset / verification links should actually arrive.
 - A code-signing certificate and a lawyer's sign-off (`LEGAL-REVIEW.md`).

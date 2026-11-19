@@ -2,7 +2,7 @@
 
 Everything here is **configuration and code**. It does not pretend accounts, payments or email are live: with no server URL and no checkout URLs the dashboard remains in the explicit browser-only preview (`test / test` = Pro, `free / free` = Free).
 
-The release ZIP and update feed are already published on [GitHub Releases](https://github.com/Tone730/wicked-imgui-releases/releases/tag/v2.2.0). This document covers the **account server**, **static hosting**, **payments** and the remaining operational pieces.
+The release ZIP and update feed are already published on [GitHub Releases](https://github.com/Tone730/wicked-imgui-releases/releases/tag/v2.2.1). This document covers the **account server**, **static hosting**, **payments** and the remaining operational pieces.
 
 ---
 
@@ -78,7 +78,7 @@ Two independent, deliberate preview-states exist:
    The generator reads `.env` (real environment variables still win). Every value left empty stays hidden / preview-only. No Lemon Squeezy anywhere.
 2. **Server intents** — set `CHECKOUT_URL_MONTHLY`, `CHECKOUT_URL_YEARLY`, `CHECKOUT_PORTAL_URL` on the API host. `POST /v1/billing/checkout {interval}` and `/v1/billing/portal` then return `{url}`. With no URL they return `billing_unavailable` (503) instead of a fake checkout.
 
-**Payhip is the recommended first provider.** Full setup is in [PAYHIP.md](PAYHIP.md): create monthly/yearly products, paste the two direct links into `.env`, set `BILLING_PROVIDER=payhip` and `PAYHIP_API_KEY` on the API host, then subscribe to `paid`, `refunded`, `subscription.created` and `subscription.deleted` webhooks. The dashboard appends `metadata[wicked_email]` to Payhip links in live mode so the webhook upgrades the right account even if the buyer pays with a different email.
+**Payhip is the recommended first provider.** Full setup is in [PAYHIP.md](PAYHIP.md): create two **Membership** products (monthly/yearly, Stripe connected), paste their two product-page URLs into `.env`, set `BILLING_PROVIDER=payhip` and `PAYHIP_API_KEY` on the API host, then subscribe to `paid`, `refunded`, `subscription.created` and `subscription.deleted` webhooks. Membership products have no direct checkout links, so buyers select the plan on the Payhip product page and should use the same email as their Wicked Imgui account.
 
 ### Webhook verification
 

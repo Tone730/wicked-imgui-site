@@ -69,7 +69,7 @@ The Downloads page reads from **`js/release.js`** — the single source of truth
 1. Copy your built portable ZIP into the `downloads\` folder.
 2. Run:
    ```
-   powershell -NoProfile -ExecutionPolicy Bypass -File tools\attach-release.ps1 -Zip "downloads\WickedImgui-Portable-2.2.0.zip" -Version "2.2.0" -Notes "What changed in this build"
+   powershell -NoProfile -ExecutionPolicy Bypass -File tools\attach-release.ps1 -Zip "downloads\WickedImgui-Portable-2.2.1.zip" -Version "2.2.1" -Notes "What changed in this build"
    ```
 3. Reload the page. The button, file size, date and SHA-256 all update automatically.
 
@@ -84,17 +84,17 @@ Drop your portable ZIP on the Downloads dropzone (or click it). The page compute
 ```js
 export const RELEASE = {
   attached: true,                       // set true to enable the download button
-  version: '2.2.0',
+  version: '2.2.1',
   date: '2026-11-18',
   bytes: 168474152,
   size: '160.7 MB',
-  sha256: 'f6682ef716f4a6c71c299c87992122fdc14c9e061675305ebeaa360871d6983d',
+  sha256: '5e6a7e98a47bde4c3edd8f7fb9a751ab32052009a8e2bf445757170f7df091ed',
   sha512: 'xWdwBByzeUN8oCzTpK8Ae5EFIWXBbPJnesI99/A7SZG4QV2I9mEqvJqIuEdOWwT0HcNvSU88mBv5rDpQMqhdzQ==', // base64 SHA-512
   channel: 'stable',
   feedUrl: 'downloads/latest.json',
   electronFeedUrl: 'downloads/latest.yml',
   notes: 'What changed in this build.',
-  file: 'WickedImgui-Portable-2.2.0.zip',
+  file: 'WickedImgui-Portable-2.2.1.zip',
   kind: 'Portable ZIP — extract and run Wicked Imgui Maker.exe',
   changes: [['Tag', 'Description']],
   older: [],                            // previous releases, newest first
@@ -103,25 +103,25 @@ export const RELEASE = {
 
 ## Attached local full-access build and live release
 
-`js/release.js` describes the rebuilt **Wicked Imgui Maker 2.2.0** portable ZIP, generated from
+`js/release.js` describes the rebuilt **Wicked Imgui Maker 2.2.1** portable ZIP, generated from
 `C:\Users\Wick\WickedImguiMaker\dist`. The build starts as Wicked Local Pro, needs no sign-in or key,
 ships a built-in offline AI provider, includes C++/C#/Rust runtime sources for source export, and
 contains all unlocked widgets, themes, effects, templates, and workflow tools. Account actions and
 usage are fully local with zero network calls, and Settings discloses that native builds need your
 own ImGui backend.
 
-The package is attached locally at `downloads\WickedImgui-Portable-2.2.0.zip` and published publicly at:
+The package is attached locally at `downloads\WickedImgui-Portable-2.2.1.zip` and published publicly at:
 
-- Release page: <https://github.com/Tone730/wicked-imgui-releases/releases/tag/v2.2.0>
-- Download: <https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.0/WickedImgui-Portable-2.2.0.zip>
-- Dashboard feed: <https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.0/latest.json>
-- App feed: <https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.0/latest.yml>
+- Release page: <https://github.com/Tone730/wicked-imgui-releases/releases/tag/v2.2.1>
+- Download: <https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.1/WickedImgui-Portable-2.2.1.zip>
+- Dashboard feed: <https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.1/latest.json>
+- App feed: <https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.1/latest.yml>
 - Rebuilt app source / build pipeline: <https://github.com/Tone730/wicked-imgui-app>
 - Dashboard source: <https://github.com/Tone730/wicked-imgui-site>
 - Live dashboard: <https://tone730.github.io/wicked-imgui-site/>
 
-Size: 168,474,152 bytes (160.7 MB). SHA-256:
-`f6682ef716f4a6c71c299c87992122fdc14c9e061675305ebeaa360871d6983d`.
+Size: 168,474,146 bytes (160.7 MB). SHA-256:
+`5e6a7e98a47bde4c3edd8f7fb9a751ab32052009a8e2bf445757170f7df091ed`.
 The Downloads page renders the live download button, checksum, and “What’s new” panel from
 `js/release.js`; the app has the public feed URL baked in.
 
@@ -129,7 +129,7 @@ To regenerate the package and refresh its SHA-256:
 
 ```
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\set-update-host.ps1 `
-  -BaseUrl 'https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.0'
+  -BaseUrl 'https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.1'
 ```
 
 This rebuilds the app with the public feed URL, copies `dist\` into
@@ -211,7 +211,7 @@ be an HTTPS URL ending in `/downloads` or a GitHub Releases tag URL such as
 - `downloads\latest.json` — `version`, `date`, `channel`, `bytes`, `sha256`, `sha512`, `file`, `url`, `notes`. The dashboard uses it for "Check for updates".
 - `downloads\latest.yml` — `version`, `releaseDate`, `path`, `sha512`, `size`. This is the standard generic-provider manifest for Electron updaters.
 
-The app reads the feed from the self-hosted URL configured in its build (`app\update-feed.json`, or `WICKED_UPDATE_URL` at runtime). The current shipped build has the public GitHub Releases feed URL baked in: `https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.0/latest.json`. Run `tools\set-update-host.ps1 -BaseUrl <public-url>` to bake a different feed URL into the next package.
+The app reads the feed from the self-hosted URL configured in its build (`app\update-feed.json`, or `WICKED_UPDATE_URL` at runtime). The current shipped build has the public GitHub Releases feed URL baked in: `https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.1/latest.json`. Run `tools\set-update-host.ps1 -BaseUrl <public-url>` to bake a different feed URL into the next package.
 
 Because the release is a portable ZIP, the app verifies the published SHA-256/SHA-512 and opens the download folder for manual extraction; it does not claim a silent background install. A future signed installer with an Ed25519 signature can use the existing Wicked Update launcher for one-click install. The dashboard shows the channel, current version and update status honestly in preview mode. Run `node C:\Users\Wick\WickedImguiMaker\test-updater.js` to exercise the app updater against the attached release.
 
@@ -263,8 +263,8 @@ Then the Redeem form validates and activates keys through `js/license.js`. Other
 3. **Email delivery endpoint** — without one, new accounts are marked verified and no confirmation email is faked; reset tokens are generated but not sent until `MAIL_WEBHOOK_URL` is configured.
 4. **A code-signing certificate** — see [SIGNING.md](../WickedImguiMaker/SIGNING.md) and the draft [code signing policy](code-signing-policy.html). Current builds are intentionally unsigned.
 5. **Lawyer review** — [LEGAL-REVIEW.md](LEGAL-REVIEW.md) lists every clause that needs checking before publication.
-6. ~~**Public hosting** —~~ Done. The ZIP, `latest.json`, and `latest.yml` are published on [GitHub Releases](https://github.com/Tone730/wicked-imgui-releases/releases/tag/v2.2.0). To move hosts later, run `tools\set-update-host.ps1 -BaseUrl <new-url>` and upload the three printed files.
-7. ~~**Public update-feed URL** —~~ Done. `CONFIG.updates.baseUrl` and the app build both point at the public GitHub Releases feed for v2.2.0.
+6. ~~**Public hosting** —~~ Done. The ZIP, `latest.json`, and `latest.yml` are published on [GitHub Releases](https://github.com/Tone730/wicked-imgui-releases/releases/tag/v2.2.1). To move hosts later, run `tools\set-update-host.ps1 -BaseUrl <new-url>` and upload the three printed files.
+7. ~~**Public update-feed URL** —~~ Done. `CONFIG.updates.baseUrl` and the app build both point at the public GitHub Releases feed for v2.2.1.
 
 ## Verification
 

@@ -6,7 +6,7 @@ export const CONFIG = {
   // When the Wicked Imgui account server (../server) hosts this folder it sets this to '/' by itself.
   apiBase: '',
   // Release metadata now lives in js/release.js — the Downloads page reads from there.
-  version: '2.2.0',
+  version: '2.2.1',
   releaseDate: '2026-11-18',
   // ---------------------------------------------------------------- updates
   // Self-hosted generic update feed (free). tools\attach-release.ps1 writes both
@@ -18,7 +18,7 @@ export const CONFIG = {
     channel: 'stable',
     feedUrl: 'downloads/latest.json',
     electronFeedUrl: 'downloads/latest.yml',
-    baseUrl: 'https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.0/',
+    baseUrl: 'https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.1/',
     checkOnLaunch: true,
   },
   pro: { price: '$10', period: 'per month' },
@@ -37,8 +37,8 @@ export const CONFIG = {
   checkout: {
     provider: 'Payhip',
     note: 'Free forever · 5% + your processor · cards/PayPal · subscriptions and license keys',
-    monthly: CHECKOUT_LINKS.monthly, // e.g. https://payhip.com/buy?link=MONTHLY_KEY
-    yearly: CHECKOUT_LINKS.yearly,   // e.g. https://payhip.com/buy?link=YEARLY_KEY
+    monthly: CHECKOUT_LINKS.monthly, // e.g. https://payhip.com/b/MONTHLY_MEMBERSHIP_KEY
+    yearly: CHECKOUT_LINKS.yearly,   // e.g. https://payhip.com/b/YEARLY_MEMBERSHIP_KEY
     portal: CHECKOUT_LINKS.portal,   // customer portal / manage subscription URL
   },
   // Extra ways to pay or support the project. Shown on Billing; empty URLs are hidden.

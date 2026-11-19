@@ -1,14 +1,16 @@
 # Payhip checkout — free-to-start setup
 
-Payhip's **Free Forever** plan has no monthly fee and includes hosted checkout, subscriptions, license keys, webhooks, coupons and unlimited products. Payhip charges 5% per sale plus the payment processor's normal fees. This is the recommended first checkout for Wicked Imgui because it can also issue software license keys.
+Payhip's **Free Forever** plan has no monthly fee and includes hosted checkout, subscriptions, license keys, webhooks, coupons and unlimited products. Payhip charges 5% per sale plus the payment processor's normal fees.
+
+**Important Payhip rule:** recurring subscriptions are available for **Membership, Bundle, Course and Coaching** products, and only when **Stripe is connected**. `Digital Product` is a one-time sale. Payhip also does **not** provide direct checkout links for membership/tiered products, so the dashboard opens the Payhip product page and the buyer selects the plan there.
 
 ## 1. What I need from you
 
 **Safe to paste here (public links):**
 
-1. Monthly product direct link — `https://payhip.com/buy?link=...`
-2. Yearly product direct link — `https://payhip.com/buy?link=...`
-3. Optional store/portal URL — your Payhip store or product page
+1. Monthly product page link — `https://payhip.com/b/MONTHLY_KEY`
+2. Yearly product page link — `https://payhip.com/b/YEARLY_KEY`
+3. Optional store/portal URL — your Payhip store, e.g. `https://payhip.com/YOUR_STORE`
 
 **Do not paste here (secret):**
 
@@ -19,21 +21,19 @@ Put secrets in `wicked-imgui\.env` on this machine. The server reads it automati
 
 ## 2. Create the products in Payhip
 
-1. Sign up at <https://payhip.com/> and connect Stripe (cards) or PayPal.
-2. Create **Wicked Imgui Pro — Monthly**:
-   - Price: `$10`
-   - Billing: recurring, every month
-   - Product type: digital product / software
-   - Enable automatic license-key generation if you want Payhip to deliver a key with each sale
-3. Create **Wicked Imgui Pro — Yearly**:
-   - Price: `$108`
-   - Billing: recurring, every year
-4. On each product's edit page, copy the product key from the URL (`https://payhip.com/b/KEY`).
-5. Build the direct checkout links:
-   - `https://payhip.com/buy?link=MONTHLY_KEY`
-   - `https://payhip.com/buy?link=YEARLY_KEY`
+1. Sign up at <https://payhip.com/> and connect **Stripe** in your Payhip payment settings. Recurring billing requires Stripe; PayPal alone is not enough.
+2. Click **Add new product → Membership**.
+3. Create **Wicked Imgui Pro — Monthly**:
+   - One plan only: `$10`, billing every **month**
+   - Keep the plan name simple, e.g. `Wicked Imgui Pro Monthly`
+4. Create **Wicked Imgui Pro — Yearly**:
+   - One plan only: `$108`, billing every **year**
+   - Keep the plan name simple, e.g. `Wicked Imgui Pro Yearly`
+5. On each product's edit page, copy the product page URL. It looks like `https://payhip.com/b/KEY`.
 
-The dashboard already appends `metadata[wicked_email]=<signed-in email>` to Payhip links in live mode, so the webhook upgrades the correct account even if the buyer types a different email in Payhip.
+Two separate Membership products give you two separate links for the Monthly and Yearly buttons. Direct checkout links are not available for memberships, so the buttons open these product pages and the buyer clicks the plan there.
+
+Ask buyers to use the **same email** on Payhip as their Wicked Imgui account so the webhook can match the subscription to the right account. The dashboard’s `metadata[wicked_email]` helper only applies to direct `/buy?link=` URLs, which memberships do not support.
 
 ## 3. Put the public links in `.env`
 
@@ -47,8 +47,8 @@ Fill these lines and leave the secrets empty until step 5:
 
 ```ini
 BILLING_PROVIDER=payhip
-CHECKOUT_URL_MONTHLY=https://payhip.com/buy?link=YOUR_MONTHLY_KEY
-CHECKOUT_URL_YEARLY=https://payhip.com/buy?link=YOUR_YEARLY_KEY
+CHECKOUT_URL_MONTHLY=https://payhip.com/b/YOUR_MONTHLY_KEY
+CHECKOUT_URL_YEARLY=https://payhip.com/b/YOUR_YEARLY_KEY
 CHECKOUT_PORTAL_URL=https://payhip.com/YOUR_STORE
 ```
 
