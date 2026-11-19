@@ -5,6 +5,14 @@ Every `- [Tag] text` bullet becomes one `changes` entry in `js/release.js`.
 Keep the bullets on a single line. When a section for the version being published
 does not exist, the pipeline keeps the existing `changes` array unchanged.
 
+## [2.8.0] - 2026-11-19
+
+- [Kits] Added all 8 public online design kits as fully editable UI kits: ImJson theme demo, VISION overlay menu, dear-imgui-styles collection, ImguiCandy themes, UntitledImGuiTheme editor, Clean ImGui menu (Evicted), Lumin Free ImGui menu and the hello_imgui 17-theme library. Every kit is a normal editable project — open it, change any control or colour, export it.
+- [Presets] Added 8 matching style presets and 8 premade templates (20 premades, 40 presets total). Exact tab/control strings, slider ranges, combo options, palettes and font roles are transcribed from each upstream source.
+- [AI] Expanded the offline control lexicon and kit suggestions for all 8 new kits; quoted or unquoted exact sampled names (e.g. "Slider Intager", "Aimbot Keybind", "License key required") insert the matching real control. Generic widget requests still reach the base local AI. No sign-in, key or network backend.
+- [Offline] Stayed fully local: offline account stays pro/full-access, built-in `local` AI remains the default, community sharing stays offline via import/export packs, and target/loader detection stays generic. All upstream sources were analysed statically — no extracted code or binaries were executed.
+- [Quality] Regression suite expanded to 580 checks; static validation (88 files), updater tests and 67 server tests all pass. Embedded PE `Integrity`/`ElectronAsar` resources are repatched after every ASAR rebuild.
+
 ## [2.4.0] - 2026-11-19
 
 - [Vision] Paste C++/C#/Rust/JS/JSON menu source and get a fully editable project mockup. Controls, tabs, colours and fonts are recognised from static text only — pasted code is never executed.
