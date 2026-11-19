@@ -5,6 +5,16 @@ Every `- [Tag] text` bullet becomes one `changes` entry in `js/release.js`.
 Keep the bullets on a single line. When a section for the version being published
 does not exist, the pipeline keeps the existing `changes` array unchanged.
 
+## [2.9.1] - 2026-11-19
+
+- [Licences] Bundled verbatim upstream MIT licence texts for all 13 permissively licensed kits in `licenses/`, generated `THIRD-PARTY-NOTICES.txt`, and added a per-kit Full licence text viewer in the Credits panel. The 9 archive samples with no upstream licence are explicitly labelled as notices, with no licence asserted on their behalf.
+- [Packaging] The portable ZIP now ships `THIRD-PARTY-NOTICES.txt` and the `licenses\` folder alongside `README-FIRST.txt`.
+- [Quality] Added `compile-exports.mjs`, which compile-checks generated `theme.h`/`credits.h` with g++, `Theme.cs`/`Credits.cs` with .NET 8, and structurally validates Rust output when rustc is absent; unavailable toolchains report SKIP. Added `qa.mjs` as a single six-gate offline QA command. Fixed C++ export to always emit `kavro_assets.h`, which `project.cpp` includes.
+- [Verification] Added `tools/verify_release.py` to the publish pipeline: it checks feed/ZIP checksums and sizes, ZIP layout and licence notices, and confirms the ASAR header hash matches the embedded PE `Integrity`/`ElectronAsar` record; `--remote` also compares the GitHub release asset digest.
+- [Doctor] Expanded layout checks for partially clipped widgets, negative coordinates, widgets under 8px, non-finite geometry and empty non-start pages.
+- [Updates] The updater now rejects plaintext HTTP update feeds and asset URLs except on localhost; HTTPS and the honest offline no-feed path are unchanged.
+- [Quality] 624 regression checks, 90-file static validation, updater tests, 67 server tests, export compile checks and 118 visual boards all pass.
+
 ## [2.9.0] - 2026-11-19
 
 - [Credits] Added a Credits & attribution panel listing every kit's author, licence, repository and attribution notes, with a copyable plain-text credits block. Attribution metadata now covers all 22 kits.
