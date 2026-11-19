@@ -1,0 +1,16 @@
+{
+    "version":  "2.2.0",
+    "date":  "2026-11-18",
+    "releaseDate":  "2026-11-19T05:08:12.7872107Z",
+    "channel":  "stable",
+    "bytes":  168474152,
+    "size":  "160.7 MB",
+    "sha256":  "f6682ef716f4a6c71c299c87992122fdc14c9e061675305ebeaa360871d6983d",
+    "sha512":  "xWdwBByzeUN8oCzTpK8Ae5EFIWXBbPJnesI99/A7SZG4QV2I9mEqvJqIuEdOWwT0HcNvSU88mBv5rDpQMqhdzQ==",
+    "file":  "WickedImgui-Portable-2.2.0.zip",
+    "url":  "https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.0/WickedImgui-Portable-2.2.0.zip",
+    "feed":  "https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.0/latest.json",
+    "electronFeed":  "https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.0/latest.yml",
+    "notes":  "Local full-access portable build with a self-hosted update feed: updates are checksum-verified and opened for extraction. Extract the ZIP and run Wicked Imgui Maker.exe; no sign-in, license key, or installer is required.",
+    "kind":  "Portable build"
+}

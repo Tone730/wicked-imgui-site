@@ -1,0 +1,10 @@
+# Large release binaries stay in GitHub Releases, not in the Pages repo.
+downloads/*.zip
+
+# Local-only tooling and temporary files.
+server/
+tools/
+node_modules/
+*.log
+*.tmp
+.DS_Store

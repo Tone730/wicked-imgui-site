@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Invoice — Wicked Imgui</title>
+  <meta name="theme-color" content="#0b0c0e">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="preload" href="assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/site.css">
+  <style>
+    .invoice { max-width: 820px; margin: 48px auto 96px; }
+    .invoice-paper { padding: 40px; border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--bg-1); }
+    .invoice-top { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+    .invoice-top .mono { color: var(--muted); }
+    .invoice h1 { font-size: 30px; letter-spacing: -.03em; margin-top: 28px; }
+    .invoice table { width: 100%; margin-top: 26px; }
+    .invoice-total { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-2); display: flex; justify-content: flex-end; gap: 14px; font-size: 17px; }
+    .invoice-total b { font-variant-numeric: tabular-nums; }
+    .invoice-actions { display: flex; gap: 10px; margin-bottom: 18px; justify-content: flex-end; }
+    @media print {
+      .site-header, .site-footer, .invoice-actions { display: none !important; }
+      body { background: #fff; color: #000; }
+      .invoice { margin: 0; }
+      .invoice-paper { border: 0; padding: 0; background: #fff; }
+      .invoice .mono, .invoice p, .invoice .label { color: #444 !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav wrap" aria-label="Main">
+      <a class="brand" href="./"><img src="assets/logo-mark.svg" alt="">Wicked Imgui</a>
+      <div class="nav-links"><a href="./#billing">Billing</a><a href="faq.html">Help &amp; FAQ</a></div>
+      <div class="nav-actions"><a class="btn sm" href="./#billing">← Back to dashboard</a></div>
+    </nav>
+  </header>
+
+  <main class="wrap invoice" id="invoice">
+    <div class="invoice-actions">
+      <button class="btn sm" type="button" id="print">Print / save PDF</button>
+      <a class="btn sm" href="./#billing">Back</a>
+    </div>
+    <div class="invoice-paper" id="paper"></div>
+  </main>
+
+  <footer class="site-footer"><div class="wrap">© <span id="year"></span> Wicked Imgui · <a href="privacy.html">Privacy &amp; terms</a></div></footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+    document.getElementById('print').addEventListener('click', () => print());
+
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const read = (k, f) => { try { return JSON.parse(localStorage.getItem(k)) ?? f; } catch { return f; } };
+    const email = sessionStorage.getItem('swi.site.session') || read('swi.site.session', null);
+    const users = read('swi.site.users', {});
+    const account = email ? users[email] : null;
+    const id = new URLSearchParams(location.search).get('id') || '';
+    const invoice = account?.invoices?.find((i) => i.id === id) || (id ? null : account?.invoices?.[0]);
+
+    const paper = document.getElementById('paper');
+    if (!invoice) {
+      paper.innerHTML = '<div class="empty"><p>That invoice could not be found in this browser.</p><p><a class="btn" href="./#billing">Back to billing</a></p></div>';
+    } else {
+      const date = new Date(invoice.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      document.title = `${esc(invoice.id)} — Wicked Imgui`;
+      paper.innerHTML = `
+        <div class="invoice-top">
+          <a class="brand" href="./"><img src="assets/logo-mark.svg" alt="">Wicked Imgui</a>
+          <div style="text-align:right">
+            <div class="label mono">Invoice</div>
+            <div class="mono">${esc(invoice.id)}</div>
+          </div>
+        </div>
+        <h1>Thank you.</h1>
+        <p>Payment receipt for ${esc(account.name)} &lt;${esc(account.email)}&gt;.</p>
+        <div class="cards two" style="margin-top:24px">
+          <div><div class="label">Issued</div><div style="margin-top:4px">${esc(date)}</div></div>
+          <div><div class="label">Status</div><div style="margin-top:4px;color:var(--accent)">Paid</div></div>
+        </div>
+        <table class="table">
+          <thead><tr><th>Item</th><th class="r">Amount</th></tr></thead>
+          <tbody><tr><td><b>${esc(invoice.description)}</b><br><span class="hint">${esc(account.email)}</span></td><td class="r"><b>${esc(invoice.amount)}</b></td></tr></tbody>
+        </table>
+        <div class="invoice-total"><span>Total paid</span><b>${esc(invoice.amount)}</b></div>
+        <p class="hint" style="margin-top:28px">Questions about this invoice? Write to <a href="mailto:wickz77r@gmail.com" data-contact="billing">wickz77r@gmail.com</a>.</p>`;
+    }
+  </script>
+  <script type="module" src="js/contact.js"></script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in — Wicked Imgui</title>
+  <meta name="theme-color" content="#0b0c0e">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="preload" href="assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+  <div class="auth">
+    <aside class="auth-side">
+      <a class="brand" href="./"><img src="assets/logo-mark.svg" alt="">Wicked Imgui</a>
+      <div class="quote">
+        <h2>Your app, your rules.</h2>
+        <p>Build desktop tools with a live ImGui designer, real source export and one keypress to a working .exe.</p>
+      </div>
+      <div class="shot"><img src="assets/shots/editor.webp" alt="Wicked Imgui editor"></div>
+    </aside>
+
+    <main class="auth-main">
+      <div class="top">
+        <span>New here?</span>
+        <a class="btn sm" href="signup.html">Create an account</a>
+      </div>
+
+      <div class="auth-form">
+        <!-- ---------------- log in ---------------- -->
+        <div id="login-view">
+          <h1>Welcome back</h1>
+          <p>Log in to manage your license, downloads and devices.</p>
+
+          <div class="notice" data-preview hidden style="margin-top:18px">
+            <svg class="icon"><use href="assets/icons.svg#info"/></svg>
+            <span class="grow">
+              Preview mode — demo accounts live in this browser.<br>
+              <span class="demo-creds" style="margin-top:8px">
+                <button type="button" data-fill="test">test / test · Pro</button>
+                <button type="button" data-fill="free">free / free · Free</button>
+              </span>
+            </span>
+          </div>
+
+          <form id="login-form" class="form" novalidate>
+            <div class="form-error" role="alert"><svg class="icon"><use href="assets/icons.svg#info"/></svg><span></span></div>
+            <div class="field">
+              <label for="email">Email</label>
+              <input class="input" id="email" name="email" type="email" autocomplete="username" placeholder="you@example.com" required>
+            </div>
+            <div class="field">
+              <label for="password">Password <a href="#reset" id="forgot">Forgot password?</a></label>
+              <div class="pw">
+                <input class="input" id="password" name="password" type="password" autocomplete="current-password" placeholder="Your password" required>
+                <button type="button" aria-label="Show password"><svg class="icon"><use href="assets/icons.svg#eye"/></svg></button>
+              </div>
+            </div>
+            <label class="check"><input type="checkbox" name="remember" checked> Remember me on this device</label>
+            <button class="btn primary block" type="submit">Log in</button>
+          </form>
+
+          <p class="hint" style="margin-top:18px">By continuing you agree to our <a href="privacy.html#terms">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p>
+          <p style="margin-top:14px"><a class="link" href="./">← Back to dashboard</a></p>
+        </div>
+
+        <!-- ---------------- password reset ---------------- -->
+        <div id="reset-view" hidden>
+          <h1>Reset your password</h1>
+          <p>We’ll email you a link to choose a new password.</p>
+
+          <form id="reset-form" class="form" novalidate>
+            <div class="form-error" role="alert"><svg class="icon"><use href="assets/icons.svg#info"/></svg><span></span></div>
+            <div class="field">
+              <label for="reset-email">Email</label>
+              <input class="input" id="reset-email" type="email" autocomplete="email" placeholder="you@example.com" required>
+            </div>
+            <button class="btn primary block" type="submit">Send reset link</button>
+          </form>
+
+          <div id="reset-done" hidden style="margin-top:20px">
+            <div class="notice" style="border-style:solid;border-color:var(--accent-line)">
+              <svg class="icon"><use href="assets/icons.svg#check"/></svg>
+              <span class="grow">If an account exists for <b id="reset-to"></b>, a reset link is on its way. In preview mode email isn’t sent — check the browser console.</span>
+            </div>
+          </div>
+
+          <p style="margin-top:18px"><button class="link btn ghost" type="button" data-back>← Back to log in</button></p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    <div class="wrap">© <span data-year>2026</span> Wicked Imgui · <a href="privacy.html#terms">Terms</a> · <a href="privacy.html">Privacy</a> · <a href="faq.html">Help</a></div>
+  </footer>
+
+  <script type="module" src="js/login.js"></script>
+</body>
+</html>

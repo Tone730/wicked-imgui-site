@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard — Wicked Imgui</title>
+  <meta name="theme-color" content="#0b0c0e">
+  <link rel="icon" href="assets/favicon.svg">
+  <link rel="preload" href="assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/site.css">
+  <link rel="stylesheet" href="css/attach.css">
+</head>
+<body>
+  <div class="dash" hidden>
+    <aside class="dash-side" id="dash-side">
+      <a class="brand" href="./"><img src="assets/logo-mark.svg" alt="" width="24" height="24">Wicked Imgui</a>
+      <nav class="dash-nav" aria-label="Account">
+        <a href="#overview" data-view="overview"><svg class="icon"><use href="assets/icons.svg#home"/></svg>Overview</a>
+        <a href="#license" data-view="license"><svg class="icon"><use href="assets/icons.svg#key"/></svg>License</a>
+        <a href="#downloads" data-view="downloads"><svg class="icon"><use href="assets/icons.svg#download"/></svg>Downloads</a>
+        <a href="#devices" data-view="devices"><svg class="icon"><use href="assets/icons.svg#devices"/></svg>Devices</a>
+        <a href="#billing" data-view="billing"><svg class="icon"><use href="assets/icons.svg#card"/></svg>Billing</a>
+        <a href="#settings" data-view="settings"><svg class="icon"><use href="assets/icons.svg#settings"/></svg>Settings</a>
+        <a href="#changelog" data-view="changelog"><svg class="icon"><use href="assets/icons.svg#info"/></svg>Changelog</a>
+      </nav>
+      <div class="dash-help">
+        <a href="faq.html"><svg class="icon"><use href="assets/icons.svg#info"/></svg>Help &amp; FAQ</a>
+        <a href="https://discord.gg/YwNQdu5pyh" target="_blank" rel="noopener"><svg class="icon"><use href="assets/icons.svg#discord"/></svg>Discord server</a>
+        <a data-support href="mailto:wick777@engineer.com"><svg class="icon"><use href="assets/icons.svg#external"/></svg>Contact support</a>
+        <a href="privacy.html"><svg class="icon"><use href="assets/icons.svg#shield"/></svg>Privacy &amp; terms</a>
+      </div>
+      <div class="dash-user">
+        <span class="avatar" id="me-avatar"></span>
+        <div class="who"><b id="me-name"></b><span id="me-email"></span></div>
+        <button class="icon-btn" type="button" data-logout title="Log out" aria-label="Log out"><svg class="icon" style="width:16px;height:16px"><use href="assets/icons.svg#log-out"/></svg></button>
+      </div>
+    </aside>
+
+    <main class="dash-main">
+      <header class="dash-top">
+        <button class="icon-btn dash-menu" type="button" aria-label="Menu" aria-controls="dash-side" aria-expanded="false"><svg class="icon"><use href="assets/icons.svg#menu"/></svg></button>
+        <h1 id="view-title">Overview</h1>
+        <span class="grow"></span>
+        <span class="chip" id="me-plan"></span>
+        <a class="btn sm" href="#downloads" data-download-top><svg class="icon" style="width:15px;height:15px"><use href="assets/icons.svg#download"/></svg>Download</a>
+      </header>
+
+      <div class="notice" data-preview hidden style="margin-bottom:24px;max-width:1040px">
+        <svg class="icon"><use href="assets/icons.svg#info"/></svg>
+        <span>Preview mode — demo data stored in this browser.</span>
+      </div>
+
+      <div class="notice verify-bar" data-verify hidden>
+        <svg class="icon"><use href="assets/icons.svg#info"/></svg>
+        <span class="grow">Confirm your email — we sent a link to <b id="verify-to"></b>.</span>
+        <button class="btn sm" type="button" data-resend>Send again</button>
+      </div>
+
+      <div class="notice pay-bar" data-paybar role="status" aria-live="polite" hidden></div>
+
+      <section class="view" id="view-overview" aria-labelledby="view-title"></section>
+      <section class="view" id="view-license" aria-labelledby="view-title"></section>
+      <section class="view" id="view-downloads" aria-labelledby="view-title"></section>
+      <section class="view" id="view-devices" aria-labelledby="view-title"></section>
+      <section class="view" id="view-billing" aria-labelledby="view-title"></section>
+      <section class="view" id="view-settings" aria-labelledby="view-title"></section>
+      <section class="view" id="view-changelog" aria-labelledby="view-title"></section>
+    </main>
+  </div>
+  <div class="dash-scrim" hidden></div>
+
+  <script type="module" src="js/dashboard.js"></script>
+</body>
+</html>

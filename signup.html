@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create an account — Wicked Imgui</title>
+  <meta name="theme-color" content="#0b0c0e">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="preload" href="assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+  <div class="auth">
+    <aside class="auth-side">
+      <a class="brand" href="./"><img src="assets/logo-mark.svg" alt="">Wicked Imgui</a>
+      <div class="quote">
+        <h2>Start building in minutes.</h2>
+        <p>One free account, three computers, and the whole designer. Upgrade only when you need to ship.</p>
+      </div>
+      <div class="shot"><img src="assets/shots/editor.webp" alt="Wicked Imgui editor"></div>
+    </aside>
+
+    <main class="auth-main">
+      <div class="top">
+        <span>Already have an account?</span>
+        <a class="btn sm" href="login.html">Log in</a>
+      </div>
+
+      <div class="auth-form">
+        <h1>Create your account</h1>
+        <p id="signup-lead">Free forever. No card needed.</p>
+
+        <div class="notice" data-preview hidden style="margin-top:18px">
+          <svg class="icon"><use href="assets/icons.svg#info"/></svg>
+          <span>Preview mode — your account is stored in this browser only. Use the demo buttons on the <a href="login.html">login page</a> to try Pro.</span>
+        </div>
+
+        <form id="signup-form" class="form" novalidate>
+          <div class="form-error" role="alert"><svg class="icon"><use href="assets/icons.svg#info"/></svg><span></span></div>
+
+          <div class="field">
+            <label for="name">Name</label>
+            <input class="input" id="name" name="name" type="text" autocomplete="name" placeholder="What should we call you?" required>
+          </div>
+
+          <div class="field">
+            <label for="email">Email</label>
+            <input class="input" id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+            <span class="err" id="email-err"></span>
+          </div>
+
+          <div class="field">
+            <label for="password">Password</label>
+            <div class="pw">
+              <input class="input" id="password" name="password" type="password" autocomplete="new-password" placeholder="At least 10 characters" required>
+              <button type="button" aria-label="Show password"><svg class="icon"><use href="assets/icons.svg#eye"/></svg></button>
+            </div>
+            <div class="strength" data-s="0" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <span class="hint">Use 10+ characters. A mix of upper case, numbers and symbols is stronger.</span>
+          </div>
+
+          <label class="check"><input type="checkbox" name="terms"> I agree to the <a href="privacy.html#terms">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</label>
+
+          <button class="btn primary block" type="submit">Create account</button>
+        </form>
+
+        <p class="hint" style="margin-top:18px">Already registered? <a href="login.html">Log in instead</a>.</p>
+      </div>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    <div class="wrap">© <span data-year>2026</span> Wicked Imgui · <a href="privacy.html#terms">Terms</a> · <a href="privacy.html">Privacy</a> · <a href="faq.html">Help</a></div>
+  </footer>
+
+  <script type="module" src="js/signup.js"></script>
+</body>
+</html>

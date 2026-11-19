@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Help & FAQ — Wicked Imgui</title>
+  <meta name="theme-color" content="#0b0c0e">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="preload" href="assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav wrap" aria-label="Main">
+      <a class="brand" href="./"><img src="assets/logo-mark.svg" alt="">Wicked Imgui</a>
+      <div class="nav-links">
+        <a href="./#downloads">Downloads</a>
+        <a href="faq.html">Help &amp; FAQ</a>
+        <a href="privacy.html">Privacy &amp; terms</a>
+      </div>
+      <div class="nav-actions">
+        <a class="btn sm ghost" href="login.html">Log in</a>
+        <a class="btn sm primary" href="./#downloads">Download</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="wrap legal">
+    <div class="legal-head">
+      <h1>Help &amp; FAQ</h1>
+      <p class="lead">Everything you need to install, activate and use Wicked Imgui.</p>
+      <p class="legal-meta">Still stuck? <a href="mailto:wick777@engineer.com" data-contact="support">Email support</a>, join the <a href="https://discord.gg/YwNQdu5pyh" target="_blank" rel="noopener">Discord server</a>, or see our <a href="privacy.html#contact">full contact details</a>.</p>
+    </div>
+
+    <div class="legal-grid" style="grid-template-columns:minmax(0,860px)">
+      <article class="faq">
+        <details open>
+          <summary>Where do I download the app?</summary>
+          <p>From the <a href="./#downloads">Downloads</a> page. Download the portable ZIP, extract it, and run <code>Wicked ImGui Maker.exe</code> — it starts as Wicked Local Pro, so no sign-in or license key is needed. Always check the SHA-256 shown next to the download; <code>Get-FileHash .\WickedImgui-Portable-2.0.0.zip</code> in PowerShell prints the hash of the file.</p>
+        </details>
+        <details>
+          <summary>Which operating systems are supported?</summary>
+          <p>Windows 10 and 11, 64-bit. DirectX 11 is required for the editor. The build is self-contained, so you don’t need to install .NET or a C++ runtime separately.</p>
+        </details>
+        <details>
+          <summary>How do I activate my license?</summary>
+          <p>The distributed build is already unlocked locally — there is nothing to activate. If you later connect a hosted account backend, sign in under <b>Account</b> in the app; your key is on the <a href="./#license">License</a> page and can be pasted into the app for offline activation.</p>
+        </details>
+        <details>
+          <summary>How many computers can I use?</summary>
+          <p>A Free account can sign in on up to three computers. Pro accounts get the same three slots with commercial use and source export. Manage or sign out computers on the <a href="./#devices">Devices</a> page.</p>
+        </details>
+        <details>
+          <summary>What’s the difference between Free and Pro?</summary>
+          <p>The downloadable build starts as <b>Wicked Local Pro</b> with every feature unlocked: offline AI, C++/C#/Rust export, two-way code sync, custom code, all widgets and templates, and commercial use. The <a href="./#billing">Billing</a> plans describe optional hosted accounts, licensing and updates.</p>
+        </details>
+        <details>
+          <summary>Can I use my own AI API key?</summary>
+          <p>Yes. The app includes <b>Wicked Local (offline)</b>, which needs no key or network, plus Google Gemini, AiHubMix, OpenRouter, NVIDIA, Ollama, Anthropic Claude and OpenAI if you enter your own key.</p>
+        </details>
+        <details>
+          <summary>Does the app work offline?</summary>
+          <p>Yes. The full-access build never needs a network connection — no sign-in, license server or AI key is required for local editing. When a self-hosted update feed is configured, the app can check it in the background; you can also check manually on the <a href="./#downloads">Downloads</a> page.</p>
+        </details>
+        <details>
+          <summary>How do I cancel or change my subscription?</summary>
+          <p>Use <b>Manage subscription</b> on the <a href="./#billing">Billing</a> page. Cancelling keeps Pro until the end of the period you already paid for. For an invoice or refund question, email <a href="mailto:wickz77r@gmail.com" data-contact="billing">wickz77r@gmail.com</a>. In this local preview there is no real checkout, so the button only shows a notice.</p>
+        </details>
+        <details>
+          <summary>I forgot my password.</summary>
+          <p>Use <b>Forgot password?</b> on the <a href="login.html#reset">login page</a> and we’ll email you a reset link. In preview mode no email is sent — accounts are stored only in this browser.</p>
+        </details>
+        <details>
+          <summary>How do I delete my account?</summary>
+          <p>Open <a href="./#settings">Settings</a> and use <b>Delete account</b>. You’ll be asked to enter your password to confirm. This cannot be undone.</p>
+        </details>
+        <details>
+          <summary>Which payment providers can I use?</summary>
+          <p>You can pay through any provider configured on the Billing page. Our free-first options all have no monthly fee: Polar Starter (5% + 50¢, handles tax), Payhip Free (5% plus your processor), Gumroad (10% + 50¢) and Ko-fi. GitHub Sponsors and PayPal.me are also available as alternatives. Checkout links are opened on the provider’s own secure site.</p>
+        </details>
+        <details>
+          <summary>Is there a free way to sign the installer?</summary>
+          <p>The SignPath Foundation gives free code signing to qualifying open-source projects, but paid dual-licensed software is normally not eligible. Closed-source builds need a paid OV/EV certificate. Either way we publish the SHA-256 of every release on the <a href="./#downloads">Downloads</a> page so you can verify what you downloaded.</p>
+        </details>
+        <details>
+          <summary>Is there a free license server?</summary>
+          <p>Yes. This project includes a small, dependency-free license server under <code>server/</code> that issues signed keys and enforces the three-device limit. Keygen also has a free Dev tier and a free self-hosted Community Edition.</p>
+        </details>
+        <details>
+          <summary>Where can I host downloads for free?</summary>
+          <p>GitHub Releases has no total storage or bandwidth quota for release assets (2 GiB per file), and Cloudflare R2 includes 10 GB of storage and free egress every month. Both are linked from the <a href="./#downloads">Downloads</a> page once a release URL is set.</p>
+        </details>
+        <details>
+          <summary>How do updates work?</summary>
+          <p>Every build publishes <code>latest.json</code> and <code>latest.yml</code> beside the download. The app checks that self-hosted feed and verifies the published checksum; the dashboard shows the current channel and version and has a manual <b>Check for updates</b> button. The full history is on the <a href="./#changelog">Changelog</a> page.</p>
+        </details>
+      </article>
+    </div>
+
+    <div class="notice" style="margin-top:36px;max-width:860px">
+      <svg class="icon"><use href="assets/icons.svg#discord"/></svg>
+      <span class="grow">Prefer to ask a person? Join the <a href="https://discord.gg/YwNQdu5pyh" target="_blank" rel="noopener">Wicked Imgui Discord server</a> or email <a href="mailto:wick777@engineer.com" data-contact="support">wick777@engineer.com</a>.</span>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">© <span data-year>2026</span> Wicked Imgui · <a href="privacy.html">Privacy &amp; terms</a> · <a href="./">Dashboard</a></div>
+  </footer>
+
+  <script>document.querySelectorAll('[data-year]').forEach(e => e.textContent = new Date().getFullYear());</script>
+  <script type="module" src="js/contact.js"></script>
+</body>
+</html>
