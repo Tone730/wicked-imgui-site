@@ -1,0 +1,56 @@
+name: Deploy Wicked Imgui dashboard
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Optional. Leave the Pages variable API_BASE empty to deploy the honest
+      # browser-only preview. For a live account server, set API_BASE to its
+      # https:// origin (for example https://wicked-imgui.onrender.com).
+      - name: Configure account API host
+        if: ${{ vars.API_BASE != '' }}
+        env:
+          API_BASE: ${{ vars.API_BASE }}
+        run: node tools/set-api-host.js --api "$API_BASE"
+
+      - name: Check CommonJS tooling syntax
+        run: node --check server/server.js && node --check tools/set-api-host.js && node --check tools/set-checkout-urls.js
+
+      - name: Stage static site
+        run: |
+          mkdir -p _site
+          cp -R *.html css js assets downloads _site/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

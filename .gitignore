@@ -9,6 +9,3 @@ server/data/
 
 # Large release binaries stay in GitHub Releases, not in the Pages repo.
 downloads/*.zip
-
-# Actions workflow requires the workflow OAuth scope; kept locally until authorized.
-.github/workflows/pages.yml
