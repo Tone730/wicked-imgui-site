@@ -2,15 +2,18 @@
 
 Payhip's **Free Forever** plan has no monthly fee and includes hosted checkout, subscriptions, license keys, webhooks, coupons and unlimited products. Payhip charges 5% per sale plus the payment processor's normal fees.
 
-**Important Payhip rule:** recurring subscriptions are available for **Membership, Bundle, Course and Coaching** products, and only when **Stripe is connected**. `Digital Product` is a one-time sale. Payhip also does **not** provide direct checkout links for membership/tiered products, so the dashboard opens the Payhip product page and the buyer selects the plan there.
+**Important Payhip rule:** recurring subscriptions are available for **Membership, Bundle, Course and Coaching** products, and only when **Stripe is connected**. `Digital Product` is a one-time sale. A membership gets a direct checkout URL **per pricing plan** (`https://payhip.com/order?link=KEY&pricing_plan=PLAN_ID`) plus a general product page (`https://payhip.com/b/KEY`). Use the per-plan URLs for the dashboard buttons so buyers land on the right plan with no extra click.
 
 ## 1. What I need from you
 
-**Safe to paste here (public links):**
+**Current live links (WicksLab, product `i28og`):**
 
-1. Monthly product page link — `https://payhip.com/b/MONTHLY_KEY`
-2. Yearly product page link — `https://payhip.com/b/YEARLY_KEY`
-3. Optional store/portal URL — your Payhip store, e.g. `https://payhip.com/YOUR_STORE`
+1. Monthly checkout — `https://payhip.com/order?link=i28og&pricing_plan=lNzMad9Oz7` ($25/month)
+2. Yearly checkout — `https://payhip.com/order?link=i28og&pricing_plan=Q9zOyg98Gx` ($108/year)
+3. Product/manage page — `https://payhip.com/b/i28og`
+4. Store — `https://payhip.com/WicksLab`
+
+To find the per-plan URLs: **product → Pricing → Copy URL** in each plan's row.
 
 **Do not paste here (secret):**
 
@@ -21,19 +24,17 @@ Put secrets in `wicked-imgui\.env` on this machine. The server reads it automati
 
 ## 2. Create the products in Payhip
 
-1. Sign up at <https://payhip.com/> and connect **Stripe** in your Payhip payment settings. Recurring billing requires Stripe; PayPal alone is not enough.
-2. Click **Add new product → Membership**.
-3. Create **Wicked Imgui Pro — Monthly**:
-   - One plan only: `$10`, billing every **month**
-   - Keep the plan name simple, e.g. `Wicked Imgui Pro Monthly`
-4. Create **Wicked Imgui Pro — Yearly**:
-   - One plan only: `$108`, billing every **year**
-   - Keep the plan name simple, e.g. `Wicked Imgui Pro Yearly`
-5. On each product's edit page, copy the product page URL. It looks like `https://payhip.com/b/KEY`.
+1. Sign up at <https://payhip.com/> and connect **Stripe** under **Account → Payment Details**. Recurring billing requires Stripe; PayPal alone is not enough. Payhip refuses to add a subscription plan until Stripe is connected. Note: Stripe may show a "not able to accept live payments" warning right after connecting; if it clears after Stripe review, disconnect and reconnect in Payhip.
+2. Click **Add new product → Membership** and name it **Wicked Imgui Pro**.
+3. Open the product's **Pricing** tab and click **Add Pricing Plan** twice:
+   - **Wicked Imgui Pro Monthly** — Subscription, `$25`, **every month**
+   - **Wicked Imgui Pro Yearly** — Subscription, `$108`, **every year**
+4. In each plan's row click **Copy URL** to get its direct checkout URL.
+5. Open the **Publish** tab, set **Published** + **Visible**, and Save. A DRAFT product cannot take payments.
 
-Two separate Membership products give you two separate links for the Monthly and Yearly buttons. Direct checkout links are not available for memberships, so the buttons open these product pages and the buyer clicks the plan there.
+One Membership product with two plans is fine. Note that **posts are not pricing plans** — plan names typed into posts do not enable checkout. The published sales page still has Payhip's placeholder copy ("Membership Title", "Example Text") that should be replaced in the **Store Builder** before promoting the product.
 
-Ask buyers to use the **same email** on Payhip as their Wicked Imgui account so the webhook can match the subscription to the right account. The dashboard’s `metadata[wicked_email]` helper only applies to direct `/buy?link=` URLs, which memberships do not support.
+Ask buyers to use the **same email** on Payhip as their Wicked Imgui account so the webhook can match the subscription to the right account. The dashboard also appends `metadata[wicked_email]` to any Payhip checkout URL in live mode, which helps match the account if the buyer uses a different email.
 
 ## 3. Put the public links in `.env`
 
@@ -47,9 +48,9 @@ Fill these lines and leave the secrets empty until step 5:
 
 ```ini
 BILLING_PROVIDER=payhip
-CHECKOUT_URL_MONTHLY=https://payhip.com/b/YOUR_MONTHLY_KEY
-CHECKOUT_URL_YEARLY=https://payhip.com/b/YOUR_YEARLY_KEY
-CHECKOUT_PORTAL_URL=https://payhip.com/YOUR_STORE
+CHECKOUT_URL_MONTHLY=https://payhip.com/order?link=KEY&pricing_plan=MONTHLY_PLAN_ID
+CHECKOUT_URL_YEARLY=https://payhip.com/order?link=KEY&pricing_plan=YEARLY_PLAN_ID
+CHECKOUT_PORTAL_URL=https://payhip.com/b/KEY
 ```
 
 Then regenerate the static links:
@@ -99,7 +100,7 @@ What happens:
 | `subscription.deleted` | Pro stays until the paid period ends, then stops renewing |
 | `refunded` | Account returns to Free |
 
-If the buyer's email does not match a dashboard account and no `metadata[wicked_email]` was passed, the server answers `ignored: 'no_account'`. No account is guessed or created.
+If the buyer's email does not match a dashboard account and no `metadata[wicked_email]` was passed, the server answers `ignored: 'no_account'`. No account is guessed or created. The dashboard appends `metadata[wicked_email]` to every Payhip checkout URL in live mode, so an account created in the dashboard is matched automatically.
 
 ## 6. Verify locally
 

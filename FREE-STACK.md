@@ -16,13 +16,13 @@ Everything below has a **$0/month entry option**. "Free" usually means no monthl
 | **PayPal.me** | $0 | Standard PayPal fees | No | Simple fallback for buyers who refuse other processors. |
 | Stripe Managed Payments | $0 | 3.5% + Stripe processing | Yes — Merchant of Record | Built by the ex-Lemon Squeezy team. Not free per sale, but no monthly fee and no tax admin. |
 
-**Recommendation:** start with **Payhip Free** as the primary checkout (hosted subscriptions, webhooks, 5% + processor) and add **Polar** or a **Ko-fi** tip jar as a second option. See [PAYHIP.md](PAYHIP.md) for the exact setup. Use two **Membership** products (recurring needs Stripe); Payhip has no direct checkout links for memberships, so these are product-page URLs. Put them in `.env` (copy `.env.example`) and regenerate `js/checkout-links.js`:
+**Recommendation:** start with **Payhip Free** as the primary checkout (hosted subscriptions, webhooks, 5% + processor) and add **Polar** or a **Ko-fi** tip jar as a second option. See [PAYHIP.md](PAYHIP.md) for the exact setup. Use a **Membership** product (recurring needs Stripe) with `$25/month` and `$108/year` plans; each plan has a direct `/order?link=KEY&pricing_plan=PLAN_ID` checkout URL. Put them in `.env` (copy `.env.example`) and regenerate `js/checkout-links.js`:
 
 ```ini
 BILLING_PROVIDER=payhip
-CHECKOUT_URL_MONTHLY=https://payhip.com/b/YOUR_MONTHLY_KEY
-CHECKOUT_URL_YEARLY=https://payhip.com/b/YOUR_YEARLY_KEY
-CHECKOUT_PORTAL_URL=https://payhip.com/YOUR_STORE
+CHECKOUT_URL_MONTHLY=https://payhip.com/order?link=KEY&pricing_plan=MONTHLY_PLAN_ID
+CHECKOUT_URL_YEARLY=https://payhip.com/order?link=KEY&pricing_plan=YEARLY_PLAN_ID
+CHECKOUT_PORTAL_URL=https://payhip.com/b/KEY
 KOFI_URL=https://ko-fi.com/YOUR_NAME
 ```
 

@@ -38,7 +38,7 @@ services:
       # Set to 'payhip' when using Payhip. Its API key goes in PAYHIP_API_KEY;
       # BILLING_WEBHOOK_SECRET is only for the generic HMAC webhook mode.
       - key: BILLING_PROVIDER
-        value: generic
+        value: payhip
       - key: PAYHIP_API_KEY
         sync: false
       - key: BILLING_WEBHOOK_SECRET

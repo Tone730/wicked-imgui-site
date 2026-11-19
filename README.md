@@ -221,22 +221,21 @@ Because the release is a portable ZIP, the app verifies the published SHA-256/SH
 
 | Provider | Fees | Who handles VAT/sales tax, refunds, chargebacks | Best for |
 |---|---|---|---|
-| **Polar Starter** (recommended) | $0/mo, 5% + 50¢ | Yes — Merchant of Record | Software subscriptions with license keys and no tax admin |
-| **Payhip Free** | $0/mo, 5% + processor | EU/UK VAT handled | Selling from your own Stripe/PayPal account |
+| **Payhip Free** (primary, live) | $0/mo, 5% + processor | EU/UK VAT handled | Hosted subscriptions, license keys and webhooks from your own Stripe account |
+| **Polar Starter** (fallback) | $0/mo, 5% + 50¢ | Yes — Merchant of Record | Software subscriptions with license keys and no tax admin |
 | Ko-fi / Gumroad | $0/mo, 5–10% | Gumroad yes, Ko-fi no | Tip jars and simple one-off sales |
-| Gumroad | ~10% | They do | Simplest possible setup, one-off products |
 | GitHub Sponsors / PayPal.me | $0/mo, 0% or standard fees | No | Recurring community support / buyers who prefer PayPal |
 
-**Polar setup steps**
+**Payhip setup steps (live)**
 
-1. Create a store and a **Wicked Pro** product with two variants: Monthly `$10`, Yearly `$108`.
-2. Enable **license keys** on the product. The app already has a Redeem field and a license model.
-3. Put the three checkout URLs (monthly, yearly, portal) into `js/config.js` → `CONFIG.checkout`, or set `CHECKOUT_URL_MONTHLY`, `CHECKOUT_URL_YEARLY`, `CHECKOUT_PORTAL_URL` on the server.
-4. Add webhooks for `order_created`, `subscription_created`, `subscription_updated` and `subscription_cancelled` so your server can flip a user between Free and Pro and store invoices.
-5. Validate license keys server-side with the included free server (`server/`, see `server/README.md`) or Keygen Dev/CE. Never trust a key checked only in the browser.
-6. Serve this folder from your account server so `CONFIG.apiBase` becomes `/`, then test with the provider's sandbox/test mode before taking real payments.
+1. Create a **Membership** product (recurring needs Stripe connected) named **Wicked Imgui Pro** with two plans: Monthly `$25`/month and Yearly `$108`/year. Publish it as **Published + Visible**.
+2. Copy each plan's direct `/order?link=KEY&pricing_plan=PLAN_ID` URL from the Pricing tab. The product page is `https://payhip.com/b/KEY`.
+3. Regenerate the static links: put the URLs in `.env` (`CHECKOUT_URL_MONTHLY`, `CHECKOUT_URL_YEARLY`, `CHECKOUT_PORTAL_URL`) then run `node tools\set-checkout-urls.js`. See [PAYHIP.md](PAYHIP.md) for the currently configured WicksLab links.
+4. Set `BILLING_PROVIDER=payhip` and `PAYHIP_API_KEY` on the API host, then subscribe to `paid`, `refunded`, `subscription.created` and `subscription.deleted` webhooks so the server flips accounts between Free and Pro and stores invoices.
+5. Serve the dashboard from the account server so `CONFIG.apiBase` points at it. Test the webhook with a real low-value purchase before relying on auto-upgrade.
+6. License keys are optional: the app has a Redeem field and the included server can sign/validate keys if you want offline activation.
 
-The current buttons are deliberate preview stubs — they show a notice instead of charging anyone. Adding a URL in `CONFIG.checkout` or `CONFIG.alternatives` makes that button open the real provider immediately.
+With links configured, the Upgrade buttons open Payhip directly. Without a hosted account server the payment still works at Payhip but there is no automatic in-app upgrade — delivery is manual. No fake checkout is ever shown.
 
 Two supported ways to go live, both honest when unconfigured:
 
@@ -258,7 +257,7 @@ Then the Redeem form validates and activates keys through `js/license.js`. Other
 
 ## What I still need from you
 
-1. **Checkout URLs / provider account** — Payhip (see [PAYHIP.md](PAYHIP.md)), Polar, Ko-fi or another provider from [FREE-STACK.md](FREE-STACK.md), if you want the preview payment buttons to go live.
+1. ~~**Checkout URLs / provider account** —~~ Done: Payhip Membership product published (WicksLab, `i28og`) with `$25/month` and `$108/year` plans. Both direct checkout URLs and the portal URL are in `.env` and `js/checkout-links.js` (see [PAYHIP.md](PAYHIP.md)). Still open: `PAYHIP_API_KEY` on a hosted API and the webhook for automatic in-app upgrades.
 2. **A hosted account server** — the code exists (`server/`); it still needs a host with persistent storage and your secrets. The local preview and full-access build need none of this.
 3. **Email delivery endpoint** — without one, new accounts are marked verified and no confirmation email is faked; reset tokens are generated but not sent until `MAIL_WEBHOOK_URL` is configured.
 4. **A code-signing certificate** — see [SIGNING.md](../WickedImguiMaker/SIGNING.md) and the draft [code signing policy](code-signing-policy.html). Current builds are intentionally unsigned.

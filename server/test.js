@@ -24,6 +24,11 @@ const child = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
     ACCOUNTS_FILE: accountsFile,
     ALLOWED_ORIGINS: 'http://localhost:8124',
     BILLING_PROVIDER: 'generic', // ignore a local .env when running the suite
+    // Explicit empties override real URLs in a local .env so the "unconfigured"
+    // billing checks stay deterministic. Real env vars still win over these.
+    CHECKOUT_URL_MONTHLY: '',
+    CHECKOUT_URL_YEARLY: '',
+    CHECKOUT_PORTAL_URL: '',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });

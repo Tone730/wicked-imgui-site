@@ -11,7 +11,7 @@
 | Support / account email | `wick777@engineer.com` |
 | Billing / refund email | `wickz77r@gmail.com` |
 | Legal / privacy email | `leakz15@programmer.net` |
-| Plans | Free $0; Pro $10/month or $108/year (`js/config.js`) |
+| Plans | Free $0; Pro $25/month or $108/year (`js/config.js`) |
 | Refund statement | 14-day refund window (`privacy.html` §14) |
 | Payment processors | Payhip (primary), Polar, Gumroad, Ko-fi, GitHub Sponsors, PayPal.me — described as merchant-of-record or not, per provider |
 | AI providers | Wicked Local (offline), Google Gemini, AiHubMix, OpenRouter, NVIDIA, Ollama, Anthropic Claude, OpenAI — user supplies their own keys |

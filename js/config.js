@@ -21,9 +21,9 @@ export const CONFIG = {
     baseUrl: 'https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.1/',
     checkOnLaunch: true,
   },
-  pro: { price: '$10', period: 'per month' },
-  // a year paid at once, 10% cheaper than 12 months
-  proYearly: { price: '$108', period: 'per year', perMonth: '$9', save: '10%' },
+  pro: { price: '$25', period: 'per month' },
+  // a year paid at once: $108 vs $25 x 12 = $300, so 64% cheaper
+  proYearly: { price: '$108', period: 'per year', perMonth: '$9', save: '64%' },
   free: { price: '$0', period: 'forever' },
   maxDevices: 3,
   // Wicked AI (Pro): the AI providers you can pick in the app (each needs the user's own API key).
@@ -37,8 +37,8 @@ export const CONFIG = {
   checkout: {
     provider: 'Payhip',
     note: 'Free forever · 5% + your processor · cards/PayPal · subscriptions and license keys',
-    monthly: CHECKOUT_LINKS.monthly, // e.g. https://payhip.com/b/MONTHLY_MEMBERSHIP_KEY
-    yearly: CHECKOUT_LINKS.yearly,   // e.g. https://payhip.com/b/YEARLY_MEMBERSHIP_KEY
+    monthly: CHECKOUT_LINKS.monthly, // e.g. https://payhip.com/order?link=KEY&pricing_plan=MONTHLY
+    yearly: CHECKOUT_LINKS.yearly,   // e.g. https://payhip.com/order?link=KEY&pricing_plan=YEARLY
     portal: CHECKOUT_LINKS.portal,   // customer portal / manage subscription URL
   },
   // Extra ways to pay or support the project. Shown on Billing; empty URLs are hidden.

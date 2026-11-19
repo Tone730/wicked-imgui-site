@@ -78,7 +78,7 @@ Two independent, deliberate preview-states exist:
    The generator reads `.env` (real environment variables still win). Every value left empty stays hidden / preview-only. No Lemon Squeezy anywhere.
 2. **Server intents** — set `CHECKOUT_URL_MONTHLY`, `CHECKOUT_URL_YEARLY`, `CHECKOUT_PORTAL_URL` on the API host. `POST /v1/billing/checkout {interval}` and `/v1/billing/portal` then return `{url}`. With no URL they return `billing_unavailable` (503) instead of a fake checkout.
 
-**Payhip is the recommended first provider.** Full setup is in [PAYHIP.md](PAYHIP.md): create two **Membership** products (monthly/yearly, Stripe connected), paste their two product-page URLs into `.env`, set `BILLING_PROVIDER=payhip` and `PAYHIP_API_KEY` on the API host, then subscribe to `paid`, `refunded`, `subscription.created` and `subscription.deleted` webhooks. Membership products have no direct checkout links, so buyers select the plan on the Payhip product page and should use the same email as their Wicked Imgui account.
+**Payhip is the recommended first provider.** Full setup is in [PAYHIP.md](PAYHIP.md): create a **Membership** product (Stripe connected) with `$25/month` and `$108/year` plans, paste each plan's direct `/order?link=KEY&pricing_plan=PLAN_ID` URL into `.env`, set `BILLING_PROVIDER=payhip` and `PAYHIP_API_KEY` on the API host, then subscribe to `paid`, `refunded`, `subscription.created` and `subscription.deleted` webhooks. Buyers should use the same email as their Wicked Imgui account; the dashboard also appends `metadata[wicked_email]` to the checkout URLs in live mode.
 
 ### Webhook verification
 
