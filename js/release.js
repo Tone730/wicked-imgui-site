@@ -3,18 +3,18 @@
 export const RELEASE = {
   // false until the final portable ZIP is attached; the page shows setup instructions while false.
   attached: true,
-  version: '2.5.0',
+  version: '2.7.0',
   date: '2026-11-19',
-  bytes: 168524336,
+  bytes: 168546946,
   size: '160.7 MB',
-  sha256: 'c7b65e19c44890f65f8186b34598dda14e5f851bc8247e1ce80f01d6a9b0d2ed',
-  sha512: 'iRXZ3Xgs6tVFtD5Z7u8zzKfGzJw5ZnJQmqamxmWrdqme+G7Rq3W86I3RyTXUe3RhGQb5iXCzxInQJKAl+ZyKsQ==',
+  sha256: 'bb22d1bd9408997d84ee8681098e21bd21bff64a94f6ad06efb4f3836d38cf74',
+  sha512: 'nMXoKTPKuvpK3sBOXlH0je3wIe/4JrnjPuqy3JitQFLLmpOoaC8mafcBp4Pb1Ilzq7BUXIbrj1ZlNxFRLqNGnw==',
   channel: 'stable',
   feedUrl: 'downloads/latest.json',
   electronFeedUrl: 'downloads/latest.yml',
-  notes: 'Added 3 faithful premade templates (Kali.dev Loader, Cloudy UI, Givenchy Standalone Menu) built from the attached sources via static analysis, plus matching Kali Dark / Cloudy Light / Givenchy Gold style presets and chainable template actions.',
+  notes: 'Added 6 new source-derived UI design systems (exact Eon.WTF, purple Fortnite External, Hackermarket FN External, orange loader template, HAT UI kit, LazyUI combat dashboard) with 12 editable premades, 32 style presets, a reusable 286-name control lexicon that lets the offline AI insert any sampled button/slider/combo by name, and stricter exact-match AI patching so generic widget requests still work. All local/offline; static analysis only.',
   // File name inside the downloads/ folder (relative to this site's root).
-  file: 'WickedImgui-Portable-2.5.0.zip',
+  file: 'WickedImgui-Portable-2.7.0.zip',
   kind: 'Portable ZIP — extract and run Wicked Imgui Maker.exe',
   changes: [
     ['Vision', 'Paste C++/C#/Rust/JS/JSON menu source and get a fully editable project mockup. Controls, tabs, colours and fonts are recognised from static text only — pasted code is never executed.'],
