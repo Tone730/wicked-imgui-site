@@ -5,6 +5,12 @@ Every `- [Tag] text` bullet becomes one `changes` entry in `js/release.js`.
 Keep the bullets on a single line. When a section for the version being published
 does not exist, the pipeline keeps the existing `changes` array unchanged.
 
+## [2.2.1] - 2026-11-19
+
+- [Fix] Fixed an atomic config-save race on first launch that could fail with `ENOENT` when two writes reused `config.json.tmp`.
+- [Export] Fixed the exported Rust stub so `macro_rules!` is declared at module scope and compiles with current `rustc`.
+- [Quality] All exported runtime stubs (C++ DX11/DX9/DX12/OpenGL3/Vulkan, C#, Rust) now compile and run cleanly with local toolchains; 455 regression checks and 52 server tests pass.
+
 ## [2.2.0] - 2026-11-18
 
 - [Editor] Zoom presets, a PNG canvas snapshot button, toggleable rulers, and grouped widget selection with real hierarchy parenting and ungrouping.
