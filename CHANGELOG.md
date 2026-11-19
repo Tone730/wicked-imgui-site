@@ -5,6 +5,15 @@ Every `- [Tag] text` bullet becomes one `changes` entry in `js/release.js`.
 Keep the bullets on a single line. When a section for the version being published
 does not exist, the pipeline keeps the existing `changes` array unchanged.
 
+## [2.9.0] - 2026-11-19
+
+- [Credits] Added a Credits & attribution panel listing every kit's author, licence, repository and attribution notes, with a copyable plain-text credits block. Attribution metadata now covers all 22 kits.
+- [Themes] Split hello_imgui into 17 source-faithful theme boards (plus selector and demo, 19 screens) using exact ImGui RGB/HSV palettes and source-order transforms — no invented colours. UntitledImGuiTheme boards use key names only because the upstream ships no palette values.
+- [Kits] Added 5 more permissively-licensed MIT kits as fully editable projects with matching presets and premades: ImThemes browser, Cupertino UI, imgui_styles (Rust), CPStyling.lua and imgui-modern-kit (30 presets→45, 20→25 premades, 22 kits total). Exact source-derived palettes, strings and licence/author data.
+- [Export] Generated theme and credits files in every language: C++ `theme.h`/`credits.h`, C# `Theme.cs`/`Credits.cs` and Rust `src/theme.rs`/`src/credits.rs`. Theme constants come from the project palette; credits list all 22 attributions; ui-only export whitelists include the new files.
+- [AI] Offline Wicked Local gained project-wide batch intents: rename text across all pages, restyle every page with a named theme, and convert widget types across the whole project. Prompt guidance and Doctor checks for broken kit/preset references added; still fully offline with no sign-in or backend.
+- [Quality] Added a dependency-free PNG visual-regression harness covering all 118 kit boards with byte-exact baselines. Regression suite expanded to 612 checks; static validation (90 files), updater tests and 67 server tests all pass. Embedded PE `Integrity`/`ElectronAsar` repatched after ASAR rebuild.
+
 ## [2.8.0] - 2026-11-19
 
 - [Kits] Added all 8 public online design kits as fully editable UI kits: ImJson theme demo, VISION overlay menu, dear-imgui-styles collection, ImguiCandy themes, UntitledImGuiTheme editor, Clean ImGui menu (Evicted), Lumin Free ImGui menu and the hello_imgui 17-theme library. Every kit is a normal editable project — open it, change any control or colour, export it.
