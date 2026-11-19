@@ -22,6 +22,8 @@ const child = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
     ADMIN_TOKEN: 'test-admin',
     DATA_FILE: dataFile,
     ACCOUNTS_FILE: accountsFile,
+    AUDIT_FILE: prefix + '-audit.jsonl',
+    ADMIN_EMAILS: 'admin@example.com',
     ALLOWED_ORIGINS: 'http://localhost:8124',
     BILLING_PROVIDER: 'generic', // ignore a local .env when running the suite
     // Explicit empties override real URLs in a local .env so the "unconfigured"
@@ -63,6 +65,8 @@ async function request(p, options = {}) {
 }
 const post = (p, body, token, cookie) => request(p, { method: 'POST', body, token, cookie });
 const authPost = (p, body, cookie) => post(p, body, undefined, cookie);
+const TERMS = { accepted: true, version: '2026-11-19', privacyVersion: '2026-11-19' };
+const register = (email, password, extra = {}) => post('/v1/auth/register', { name: 'Test User', email, password, terms: TERMS, ...extra });
 
 (async () => {
   for (let i = 0; i < 60; i++) {
@@ -120,17 +124,37 @@ const authPost = (p, body, cookie) => post(p, body, undefined, cookie);
   const signedOut = await request('/v1/auth/session');
   check('signed-out session is 200 with user:null', signedOut.status === 200 && signedOut.body.user === null);
 
-  const weak = await post('/v1/auth/register', { name: 'Weak', email: 'weak@example.com', password: 'short' });
+  const weak = await register('weak@example.com', 'short', { name: 'Weak' });
   check('weak password rejected', weak.status === 400 && weak.body.error === 'weak_password');
 
-  const reg = await post('/v1/auth/register', { name: 'Test User', email: 'User@Example.com', password: 'correct-horse-battery' });
+  const noTerms = await post('/v1/auth/register', { name: 'No Terms', email: 'noterms@example.com', password: 'correct-horse-battery' });
+  check('legal acceptance required', noTerms.status === 422 && noTerms.body.error === 'terms_required');
+
+  const reg = await register('User@Example.com', 'correct-horse-battery');
   let cookie = reg.cookie;
   check('register creates session', reg.status === 200 && /^swi_session=/.test(cookie));
   check('account shape matches preview', reg.body.user?.email === 'user@example.com' && reg.body.user?.plan === 'free' && Array.isArray(reg.body.devices) && Array.isArray(reg.body.invoices) && !!reg.body.license?.key);
+  check('account exposes empty credit balances', reg.body.credits?.access === 0 && reg.body.credits?.ai === 0 && reg.body.credits?.accessDays === 30);
   check('register grants one web device', reg.body.devices.length === 1, reg.body.devices[0]?.name);
 
-  const dupe = await post('/v1/auth/register', { name: 'Other', email: 'user@example.com', password: 'correct-horse-battery' });
+  const dupe = await register('user@example.com', 'correct-horse-battery', { name: 'Other' });
   check('duplicate email rejected', dupe.status === 409 && dupe.body.error === 'email_taken');
+
+  // ---- admin auth: role from ADMIN_EMAILS, token fallback, and no public bypass
+  const adminReg = await register('admin@example.com', 'admin-long-password', { name: 'Admin' });
+  const adminCookie = adminReg.cookie;
+  check('ADMIN_EMAILS grants the admin role', adminReg.body.user?.role === 'admin');
+  const adminByRole = await request('/admin/api/session', { cookie: adminCookie });
+  const adminByToken = await request('/admin/api/session', { token: 'test-admin' });
+  const adminDenied = await request('/admin/api/session', { cookie });
+  check('admin session accepts role and token, denies users', adminByRole.status === 200 && adminByRole.body.mode === 'account' && adminByToken.status === 200 && adminByToken.body.mode === 'token' && adminDenied.status === 401);
+
+  const annSet = await post('/admin/api/announcement', { text: 'Scheduled maintenance tonight', level: 'warning', enabled: true }, undefined, adminCookie);
+  const annPublic = await request('/v1/status');
+  check('admin announcement appears in public status', annSet.status === 200 && annPublic.body.announcement?.text === 'Scheduled maintenance tonight' && annPublic.body.announcement?.level === 'warning');
+  const annClear = await post('/admin/api/announcement', { text: '', enabled: false }, undefined, adminCookie);
+  const annGone = await request('/v1/status');
+  check('admin can clear announcement', annClear.status === 200 && annGone.body.announcement === null);
 
   const wrongPw = await post('/v1/auth/login', { email: 'user@example.com', password: 'nope' });
   check('wrong password rejected', wrongPw.status === 401 && wrongPw.body.error === 'invalid_credentials');
@@ -182,9 +206,54 @@ const authPost = (p, body, cookie) => post(p, body, undefined, cookie);
   const redeemed = await authPost('/v1/account/redeem', { key: redeemKey.body.key }, cookie);
   check('redeem grants Pro', redeemed.status === 200 && redeemed.body.user.plan === 'pro' && !!redeemed.body.license.proUntil);
 
-  const second = await post('/v1/auth/register', { name: 'Second', email: 'second@example.com', password: 'another-long-password' });
+  // ---- credits: manual payment, redeem, limited key mint, metered AI spend
+  const manual = await post('/admin/api/manual-sale', {
+    email: 'user@example.com', name: 'Test User', amount: 25, method: 'cash',
+    days: 0, accessCredits: 3, aiCredits: 20, note: 'Paid at the desk',
+  }, undefined, adminCookie);
+  const afterManual = await request('/v1/account', { cookie });
+  const balance = await request('/v1/credits', { cookie });
+  check('manual payment records an invoice', manual.status === 200 && manual.body.sale.codes.length === 2 && afterManual.body.invoices.some((i) => i.id === manual.body.sale.id));
+  check('manual payment grants both balances', balance.body.credits.access === 3 && balance.body.credits.ai === 20 && balance.body.credits.accessDays === 30);
+
+  const redeemedAccess = await authPost('/v1/credits/redeem', { credits: 2 }, cookie);
+  const afterAccess = await request('/v1/credits', { cookie });
+  check('access credits buy Pro days', redeemedAccess.status === 200 && redeemedAccess.body.days === 60 && afterAccess.body.credits.access === 1 && afterAccess.body.credits.ai === 20);
+
+  const minted = await authPost('/v1/credits/key', { credits: 1, maxDevices: 1 }, cookie);
+  const mintedCheck = await post('/validate', { key: minted.body.key });
+  const afterMint = await request('/v1/credits', { cookie });
+  check('access credits mint a limited key', minted.status === 200 && mintedCheck.body.valid === true && mintedCheck.body.max === 1 && mintedCheck.body.maxRedemptions === 1 && afterMint.body.credits.access === 0);
+
+  const aiOnce = await authPost('/v1/ai/usage', { units: 5, idempotencyKey: 'test-idempotency-001' }, cookie);
+  const aiTwice = await authPost('/v1/ai/usage', { units: 5, idempotencyKey: 'test-idempotency-001' }, cookie);
+  const aiTooMuch = await authPost('/v1/ai/usage', { units: 999, idempotencyKey: 'test-idempotency-002' }, cookie);
+  const afterAi = await request('/v1/credits', { cookie });
+  check('AI credits spend once per idempotency key', aiOnce.status === 200 && aiOnce.body.remaining === 15 && aiTwice.body.cached === true && aiTwice.body.remaining === 15 && aiTooMuch.status === 402 && afterAi.body.credits.ai === 15);
+
+  const second = await register('second@example.com', 'another-long-password', { name: 'Second' });
   const reused = await authPost('/v1/account/redeem', { key: redeemKey.body.key }, second.cookie);
   check('redeemed key cannot be reused', reused.status === 409 && reused.body.error === 'key_used');
+
+  const mintedRedeem = await authPost('/v1/account/redeem', { key: minted.body.key }, second.cookie);
+  const mintedTwice = await authPost('/v1/account/redeem', { key: minted.body.key }, cookie);
+  check('minted key allows one redemption', mintedRedeem.status === 200 && mintedRedeem.body.license.maxDevices === 1 && mintedTwice.status === 409 && mintedTwice.body.error === 'key_used');
+
+  const adminKey = await post('/admin/api/user/key', {
+    email: 'second@example.com', plan: 'pro', days: 7, maxDevices: 1,
+    maxRedemptions: 1, aiCredits: 5, note: 'Admin test key',
+  }, undefined, adminCookie);
+  const adminKeyCheck = await post('/validate', { key: adminKey.body.key });
+  const revokedKey = await post('/admin/api/key/revoke', { key: adminKey.body.key, note: 'Test revoke' }, undefined, adminCookie);
+  const revokedCheck = await post('/validate', { key: adminKey.body.key });
+  check('admin key limits and revoke work', adminKeyCheck.body.max === 1 && adminKeyCheck.body.maxRedemptions === 1 && adminKeyCheck.body.usedAccounts === 0 && revokedKey.body.ok === true && revokedCheck.body.valid === false && revokedCheck.body.revoked === true);
+
+  const roleChange = await post('/admin/api/user/role', { email: 'second@example.com', role: 'admin' }, undefined, adminCookie);
+  const users = await request('/admin/api/users', { cookie: adminCookie });
+  const secondRow = users.body.find((u) => u.email === 'second@example.com');
+  const planChange = await post('/admin/api/user/plan', { email: 'second@example.com', plan: 'pro', days: 10, maxDevices: 1 }, undefined, adminCookie);
+  const auditRows = await request('/admin/api/audit?limit=100&action=credits', { cookie: adminCookie });
+  check('admin can change roles, plans and read logs', roleChange.body.role === 'admin' && secondRow?.role === 'admin' && planChange.body.plan === 'pro' && planChange.body.proUntil && auditRows.body.some((e) => String(e.action).startsWith('credits.')));
 
   const device = redeemed.body.devices[0];
   const revoked = await request('/v1/devices/' + encodeURIComponent(device.id), { method: 'DELETE', cookie });
@@ -215,6 +284,33 @@ const authPost = (p, body, cookie) => post(p, body, undefined, cookie);
   const finalStats = await request('/stats', { token: 'test-admin' });
   check('stats counts accounts', typeof finalStats.body.accounts === 'number');
 
+  // ---- admin is never public when neither auth method is configured
+  const port4 = 8790;
+  const files4 = [dataFile + '.noadmin', accountsFile + '.noadmin'];
+  const child4 = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
+    env: {
+      ...process.env,
+      PORT: String(port4),
+      LICENSE_SECRET: 'test-secret-do-not-use',
+      ADMIN_TOKEN: '',
+      ADMIN_EMAILS: '',
+      DATA_FILE: files4[0],
+      ACCOUNTS_FILE: files4[1],
+      AUDIT_FILE: prefix + '-audit-noadmin.jsonl',
+      BILLING_PROVIDER: 'generic',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  spawned.push(child4);
+  child4.stderr.on('data', (d) => process.stderr.write(d));
+  BASE = `http://127.0.0.1:${port4}`;
+  for (let i = 0; i < 60; i++) {
+    try { await fetch(BASE + '/health'); break; } catch { await new Promise((r) => setTimeout(r, 100)); }
+  }
+  const noAdmin = await request('/admin/api/session', { token: 'anything' });
+  check('admin routes locked when unconfigured', noAdmin.status === 503 && noAdmin.body.error === 'admin_unconfigured');
+  BASE = `http://127.0.0.1:${PORT}`;
+
   // ---- second instance: configured checkout + signed provider-neutral webhook
   const port2 = 8789;
   const files2 = [dataFile + '.webhook', accountsFile + '.webhook'];
@@ -238,7 +334,7 @@ const authPost = (p, body, cookie) => post(p, body, undefined, cookie);
   for (let i = 0; i < 60; i++) {
     try { await fetch(BASE + '/health'); break; } catch { await new Promise((r) => setTimeout(r, 100)); }
   }
-  const buyer = await post('/v1/auth/register', { name: 'Buyer', email: 'buyer@example.com', password: 'a-very-long-password' });
+  const buyer = await register('buyer@example.com', 'a-very-long-password', { name: 'Buyer' });
   const configured = await authPost('/v1/billing/checkout', { interval: 'month' }, buyer.cookie);
   check('configured checkout returns provider URL', configured.status === 200 && configured.body.url === 'https://example.com/checkout/month');
 
@@ -290,7 +386,7 @@ const authPost = (p, body, cookie) => post(p, body, undefined, cookie);
   for (let i = 0; i < 60; i++) {
     try { await fetch(BASE + '/health'); break; } catch { await new Promise((r) => setTimeout(r, 100)); }
   }
-  const phBuyer = await post('/v1/auth/register', { name: 'Payhip Buyer', email: 'payhip@example.com', password: 'a-very-long-password' });
+  const phBuyer = await register('payhip@example.com', 'a-very-long-password', { name: 'Payhip Buyer' });
   const phCheckout = await authPost('/v1/billing/checkout', { interval: 'year' }, phBuyer.cookie);
   check('Payhip checkout URL returned', phCheckout.status === 200 && phCheckout.body.url === 'https://payhip.com/b/YEARLYKEY');
 
@@ -331,7 +427,8 @@ const authPost = (p, body, cookie) => post(p, body, undefined, cookie);
   check('Payhip refund returns account to Free', refunded.status === 200 && phRefunded.body.user?.plan === 'free' && phRefunded.body.subscription === null);
 
   for (const c of spawned) c.kill();
-  for (const f of [dataFile, accountsFile, ...files2, ...files3]) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
+  for (const f of [dataFile, accountsFile, ...files2, ...files3, ...files4]) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
+  for (const f of [prefix + '-audit.jsonl', prefix + '-audit-noadmin.jsonl']) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
   const failed = results.filter((r) => !r.pass);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);
   process.exit(failed.length ? 1 : 0);

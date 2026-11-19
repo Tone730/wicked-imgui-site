@@ -49,20 +49,29 @@ const MESSAGES = {
   confirm_mismatch: 'The email you typed doesn’t match the account.',
   cannot_delete_admin: 'Admin accounts can’t be deleted here. Revoke admin on the server first.',
   already_verified: 'This email is already confirmed.',
+  terms_required: 'Accept the current Terms and Privacy Policy to create an account.',
+  insufficient_credits: 'You don’t have enough credits for that.',
+  admin_unconfigured: 'Admin access is not configured on this server.',
+  admin_required: 'Admin access required.',
+  preview_only: 'That needs a connected account server. Preview mode is local only.',
 };
 export function errorText(e) {
   return MESSAGES[e?.code] || e?.message || MESSAGES.server_error;
 }
 
 // ---------------------------------------------------------------- server
-async function call(method, path, body) {
+async function call(method, path, body, { token, headers: extra = {} } = {}) {
   let res;
   try {
     res = await fetch(CONFIG.apiBase.replace(/\/$/, '') + path, {
       method,
       credentials: 'include', // session cookie (HttpOnly, Secure, SameSite=Lax) set by the server
-      headers: body ? { 'Content-Type': 'application/json' } : {},
-      body: body ? JSON.stringify(body) : undefined,
+      headers: {
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: 'Bearer ' + token } : {}),
+        ...extra,
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
     throw new ApiError('network');
@@ -94,6 +103,11 @@ const server = {
   checkout: (interval = 'month') => call('POST', '/v1/billing/checkout', { interval }),
   portal: () => call('POST', '/v1/billing/portal'),
   redeem: (b) => call('POST', '/v1/account/redeem', b),
+  credits: () => call('GET', '/v1/credits'),
+  claimCredit: (code) => call('POST', '/v1/credits/claim', { code }),
+  redeemCredits: (credits) => call('POST', '/v1/credits/redeem', { credits }),
+  mintCreditKey: (b) => call('POST', '/v1/credits/key', b),
+  spendAi: (units, idempotencyKey) => call('POST', '/v1/ai/usage', { units, idempotencyKey }),
 };
 
 // ---------------------------------------------------------------- preview mode (browser only)

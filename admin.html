@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin — Wicked Imgui</title>
+  <meta name="theme-color" content="#0b0c0e">
+  <link rel="icon" href="assets/favicon.svg">
+  <link rel="preload" href="assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav wrap" aria-label="Main">
+      <a class="brand" href="./"><img src="assets/logo-mark.svg" alt="">Wicked Imgui</a>
+      <div class="nav-links">
+        <a href="./">Dashboard</a>
+        <a href="faq.html">Help &amp; FAQ</a>
+        <a href="privacy.html">Privacy &amp; terms</a>
+      </div>
+      <div class="nav-actions"><a class="btn sm ghost" href="./">Back to dashboard</a></div>
+    </nav>
+  </header>
+
+  <div class="admin-gate" id="admin-gate">
+    <div class="card gate-card">
+      <div class="card-head"><svg class="icon"><use href="assets/icons.svg#lock"/></svg><h2>Admin access</h2></div>
+      <p class="sub">Use an admin account session, or enter the server’s <code>ADMIN_TOKEN</code> here. The token is kept only in this tab’s session storage — it is never written into the site code.</p>
+      <div class="notice warn" id="gate-notice" hidden></div>
+      <div class="row" style="margin-top:18px"><a class="btn primary" href="login.html?next=admin.html">Sign in with an admin account</a></div>
+      <div class="gate-or">or use a one-time admin token</div>
+      <form id="gate-form" class="field" style="gap:10px">
+        <label for="admin-token">ADMIN_TOKEN</label>
+        <input class="input" id="admin-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste the token from the server’s secret store">
+        <div class="form-error" role="alert"><svg class="icon"><use href="assets/icons.svg#info"/></svg><span></span></div>
+        <button class="btn primary block" type="submit">Unlock admin panel</button>
+      </form>
+    </div>
+  </div>
+
+  <main class="wrap admin-shell" id="admin-shell" hidden>
+    <div class="admin-top">
+      <div><h1>Admin panel</h1><p class="sub" id="admin-who">Checking access…</p></div>
+      <div class="row">
+        <button class="btn sm" type="button" id="admin-refresh"><svg class="icon"><use href="assets/icons.svg#refresh"/></svg>Refresh</button>
+        <button class="btn sm ghost" type="button" id="admin-forget">Forget token</button>
+      </div>
+    </div>
+    <div class="notice" id="admin-notice" hidden></div>
+
+    <nav class="admin-tabs" id="admin-tabs" aria-label="Admin sections">
+      <button class="on" type="button" data-tab="overview">Overview</button>
+      <button type="button" data-tab="users">Users</button>
+      <button type="button" data-tab="keys">Keys</button>
+      <button type="button" data-tab="sales">Manual sales</button>
+      <button type="button" data-tab="announcement">Announcement</button>
+      <button type="button" data-tab="audit">Activity log</button>
+    </nav>
+
+    <section class="admin-panel" id="tab-overview" aria-label="Overview"></section>
+    <section class="admin-panel" id="tab-users" aria-label="Users" hidden></section>
+    <section class="admin-panel" id="tab-keys" aria-label="Keys" hidden></section>
+    <section class="admin-panel" id="tab-sales" aria-label="Manual sales" hidden></section>
+    <section class="admin-panel" id="tab-announcement" aria-label="Announcement" hidden></section>
+    <section class="admin-panel" id="tab-audit" aria-label="Activity log" hidden></section>
+  </main>
+
+  <footer class="site-footer"><div class="wrap">© <span data-year>2026</span> Wicked Imgui · Admin tools are server-side and logged.</div></footer>
+  <script>document.querySelectorAll('[data-year]').forEach(e => e.textContent = new Date().getFullYear());</script>
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>

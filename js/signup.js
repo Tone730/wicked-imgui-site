@@ -45,7 +45,16 @@ form.addEventListener('submit', (e) => {
   }
   busy($('[type=submit]', form), async () => {
     try {
-      await auth.register({ name: name.value.trim(), email: email.value.trim(), password: password.value });
+      await auth.register({
+        name: name.value.trim(),
+        email: email.value.trim(),
+        password: password.value,
+        terms: {
+          accepted: true,
+          version: CONFIG.legal.termsVersion,
+          privacyVersion: CONFIG.legal.privacyVersion,
+        },
+      });
       location.replace(target + (target.includes('#') ? '' : '#welcome'));
     } catch (err) {
       formError(form, errorText(err));

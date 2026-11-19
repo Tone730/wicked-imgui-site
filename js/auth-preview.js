@@ -61,8 +61,10 @@ function currentEmail() {
 }
 function publicAccount(u) {
   return {
-    user: { id: u.id, name: u.name, email: u.email, plan: u.plan, created: u.created, emailVerified: true },
-    license: { key: u.licenseKey, plan: u.plan, maxDevices: CONFIG.maxDevices, updatesUntil: u.plan === 'pro' ? nextMonth() : null, proUntil: u.subscription ? nextMonth() : null },
+    user: { id: u.id, name: u.name, email: u.email, plan: u.plan, created: u.created, emailVerified: true, role: 'user' },
+    license: { key: u.licenseKey, plan: u.plan, maxDevices: u.maxDevices || CONFIG.maxDevices, updatesUntil: u.plan === 'pro' ? nextMonth() : null, proUntil: u.subscription ? nextMonth() : null },
+    credits: { access: 0, ai: 0, accessDays: CONFIG.credits?.accessDays || 30 },
+    entitlement: { maxDevices: u.maxDevices || CONFIG.maxDevices, source: 'preview' },
     subscription: u.subscription ? { status: u.subscription.status, renews: u.subscription.status === 'active', renewsAt: u.subscription.interval === 'year' ? addYear(new Date().toISOString()) : nextMonth(), endsAt: null, interval: u.subscription.interval || 'month' } : null,
     yearlyAvailable: !!CONFIG.proYearly,
     devices: u.devices,
@@ -210,6 +212,17 @@ export const preview = {
     if (!u.subscription) throw new ApiError('no_subscription');
     return { url: '#billing' }; // the real site opens the configured provider's portal
   },
+  // Credits are server-side. Preview exposes an empty read-only shape so the view can
+  // explain the difference without pretending a local grant is a real purchase.
+  async credits() {
+    await wait(80);
+    const c = publicAccount(requireUser().u).credits;
+    return { ...c, ledger: [], pending: [] };
+  },
+  async claimCredit() { await wait(); throw new ApiError('preview_only'); },
+  async redeemCredits() { await wait(); throw new ApiError('preview_only'); },
+  async mintCreditKey() { await wait(); throw new ApiError('preview_only'); },
+  async spendAi() { await wait(); throw new ApiError('preview_only'); },
 };
 
 

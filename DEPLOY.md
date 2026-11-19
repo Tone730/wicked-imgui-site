@@ -36,7 +36,12 @@ Use this when the dashboard is on GitHub Pages / Cloudflare Pages and the API is
 | `NODE_ENV` | `production` | Secure cookies, `0.0.0.0` bind |
 | `BIND_HOST` | `0.0.0.0` | Hosts that require explicit binding |
 | `LICENSE_SECRET` | long random hex | Signs license keys and webhook data |
-| `ADMIN_TOKEN` | long random hex | Guards `/issue` and `/stats` |
+| `ADMIN_TOKEN` | long random hex | Bearer fallback for admin routes; never put it in site code |
+| `ADMIN_EMAILS` | comma-separated account emails | Grants the admin role for daily use; leave blank for token-only |
+| `AUDIT_FILE` | persistent path | Append-only admin/credit activity log |
+| `ACCESS_CREDIT_DAYS` | `30` | Pro days bought by one access credit |
+| `MAX_KEY_DEVICES` | `5` | Seat cap for keys issued from credits or by admins |
+| `TERMS_VERSION`, `PRIVACY_VERSION` | `2026-11-19` | Version strings accepted at signup and stored on accounts |
 | `ALLOWED_ORIGINS` | `https://OWNER.github.io` (comma-separated if more) | Only these origins may use credentialed requests |
 | `COOKIE_SECURE` | `1` | Required for cross-site cookies |
 | `COOKIE_SAMESITE` | `None` | `Lax` is intentionally stricter but blocks cross-site fetch |
@@ -44,6 +49,8 @@ Use this when the dashboard is on GitHub Pages / Cloudflare Pages and the API is
 | `CHECKOUT_URL_MONTHLY`, `CHECKOUT_URL_YEARLY`, `CHECKOUT_PORTAL_URL` | Payhip/Polar links | Enable server-side checkout/portal intents |
 | `BILLING_PROVIDER` | `payhip` or `generic` | Chooses webhook verification and payload normalisation |
 | `PAYHIP_API_KEY` | Payhip API key | Verifies Payhip webhook signatures; keep it secret |
+
+If both `ADMIN_EMAILS` and `ADMIN_TOKEN` are empty, all `/admin/api/*` routes return `503 admin_unconfigured`. The standalone `admin.html` panel signs in with an admin account session by default; its token field is runtime-only and saved to browser `sessionStorage`, never to a source file.
 
 Without a persistent disk, accounts and keys are lost on redeploy — that is a limitation of the free plan, not of the code. Render disks are a paid add-on; if you do not add one, say so plainly on your support page rather than implying accounts are permanent.
 
@@ -61,7 +68,23 @@ The server implements exactly the endpoints `js/auth.js` already calls: register
 - Redeem checks the HMAC signature, expiry and previous owner of a `SWI-*` key before granting Pro.
 - Email delivery is **not built in**. Without `MAIL_WEBHOOK_URL`, new accounts are marked verified so the UI never claims it sent a confirmation link. Password-reset still answers generically but sends nothing. With a webhook configured, reset/verification tokens are generated and passed to it; if a legacy account is still unverified while no webhook is configured, resend reports `delivery: 'not_configured'` honestly. Set `DEV_MAIL_TOKENS=1` locally only to print tokens to the console while testing.
 
-Tests: `cd server && node test.js` — 52 checks covering the original license service, accounts, sessions, CORS/CSRF, static config injection, checkout states, generic + Payhip signed webhooks, invoice creation, subscription cancellation and refunds.
+Tests: `cd server && node test.js` — 67 checks covering the original license service, accounts, sessions, CORS/CSRF, static config injection, checkout states, generic + Payhip signed webhooks, invoice creation, subscription cancellation and refunds, versioned legal acceptance, admin auth boundaries, credits, grants, key limits/revocation, manual sales, announcements and audit logs.
+
+### Admin panel and credits
+
+The admin panel is a standalone page at `admin.html` (linked from the sidebar for admins only). It has tabs for Overview, Users, Keys, Manual sales, Announcement and Activity log. Two auth paths are supported:
+
+- **Admin role** — add the account email to `ADMIN_EMAILS` and sign in normally. This is the recommended daily path; no token is handled by the browser.
+- **Token fallback** — paste the server's `ADMIN_TOKEN` into the panel at runtime. It is stored only in that tab's `sessionStorage`, sent as a Bearer header, and can be forgotten with one click.
+
+Everything an admin does is appended to `AUDIT_FILE` with actor, target, action and a result. Passwords, full license keys and tokens are never written to the log. The Activity log tab can filter by action, actor and free text.
+
+Two independent balances exist:
+
+- **Access credits** — one credit buys `ACCESS_CREDIT_DAYS` of Pro. A customer can redeem them for their own account or mint a transferable, one-redemption Pro key capped by their own device entitlement. Admins can grant them through a manual sale or directly on a user.
+- **AI credits** — a server-authoritative ledger spent by `POST /v1/ai/usage` with an idempotency key, so repeating a request does not charge twice. The local full-access Maker build is offline and uses the user's own provider keys, so it never spends this balance; do not present it as doing so.
+
+Manual sales record cash/bank/crypto payments and grant Pro days or credits. If the buyer has no account yet, the grants wait as claimable codes and apply automatically when they sign up or log in with that email. Announcements set here appear in the public `/v1/status` feed and at the top of the dashboard.
 
 ---
 

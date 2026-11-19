@@ -5,6 +5,18 @@ Every `- [Tag] text` bullet becomes one `changes` entry in `js/release.js`.
 Keep the bullets on a single line. When a section for the version being published
 does not exist, the pipeline keeps the existing `changes` array unchanged.
 
+## [2.4.0] - 2026-11-19
+
+- [Vision] Paste C++/C#/Rust/JS/JSON menu source and get a fully editable project mockup. Controls, tabs, colours and fonts are recognised from static text only — pasted code is never executed.
+- [Templates] Added 4 editable premade templates rebuilt from the attached menu projects: Hackermarket, Fragment, Nexus UI and an approximate Eon-style layout. Archive sources were analysed statically, never run.
+- [Learn] Style learning from existing projects plus one-click smart prebuild generation that carries your widgets, colours and fonts into a fresh project.
+- [Library] Added a local, offline community library: publish templates, search/filter by tag, and share through portable import/export packs. No account, sign-in or server is contacted.
+- [Loaders] Added generic loader/API compatibility profiles with source-based hint detection and a checklist. Nothing is tied to a specific game or engine.
+- [Assets] Import images as embedded data-URL assets that travel inside the project and export into C++/C#/Rust byte arrays; export/import reusable asset packs.
+- [Widgets] Expanded the font list (Inter, Outfit, JetBrains Mono and more) with text styles, plus webhook, Discord and open-URL actions in the preview and generated code.
+- [Editor] New v2.4 Tools tab in the left panel unifies menu understanding, templates, prebuilds, the library, loader profiles and image assets.
+- [Quality] Regression suite expanded to 496 checks covering every new module and integration; static validation, updater tests and 67 server tests all pass.
+
 ## [2.3.0] - 2026-11-19
 
 - [Menus] Added 8 reusable overlay-menu presets (Trainer, Dashboard, Sidebar, Tabbed, HUD, Settings, Combat, Minimal) that attach to any project and generate real pages/widgets plus a menu source file for C++, C# and Rust.

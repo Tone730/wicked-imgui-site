@@ -6,7 +6,7 @@ export const CONFIG = {
   // When the Wicked Imgui account server (../server) hosts this folder it sets this to '/' by itself.
   apiBase: '',
   // Release metadata now lives in js/release.js — the Downloads page reads from there.
-  version: '2.3.0',
+  version: '2.4.0',
   releaseDate: '2026-11-19',
   // ---------------------------------------------------------------- updates
   // Self-hosted generic update feed (free). tools\attach-release.ps1 writes both
@@ -18,7 +18,7 @@ export const CONFIG = {
     channel: 'stable',
     feedUrl: 'downloads/latest.json',
     electronFeedUrl: 'downloads/latest.yml',
-    baseUrl: 'https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.3.0/',
+    baseUrl: 'https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.4.0/',
     checkOnLaunch: true,
   },
   pro: { price: '$25', period: 'per month' },
@@ -26,6 +26,8 @@ export const CONFIG = {
   proYearly: { price: '$108', period: 'per year', perMonth: '$9', save: '64%' },
   free: { price: '$0', period: 'forever' },
   maxDevices: 3,
+  // One access credit buys this many days of Pro. Admin keys can set their own seat limits.
+  credits: { accessDays: 30, maxKeyDevices: 5 },
   // Wicked AI (Pro): the AI providers you can pick in the app (each needs the user's own API key).
   // free: the ones with free models (or, for Ollama, running on the user's PC)
   ai: { providers: ['Wicked Local (offline)', 'Google Gemini', 'AiHubMix', 'OpenRouter', 'NVIDIA', 'Ollama', 'Anthropic Claude', 'OpenAI'], free: ['Wicked Local (offline)', 'Google Gemini', 'AiHubMix', 'OpenRouter', 'NVIDIA', 'Ollama'] },
@@ -85,6 +87,9 @@ export const CONFIG = {
     state: 'Florida',
     operator: 'Wicked Imgui, operated by an individual developer',
     email: 'leakz15@programmer.net',
-    updated: '2026-11-18',   // change when you change the terms or the privacy policy
+    updated: '2026-11-19',   // change when you change the terms or the privacy policy
+    // Sent by signup and stored with the acceptance timestamp by the account server.
+    termsVersion: '2026-11-19',
+    privacyVersion: '2026-11-19',
   },
 };

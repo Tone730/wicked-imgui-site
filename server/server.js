@@ -25,14 +25,23 @@
 //   POST /v1/billing/checkout          {interval:'month'|'year'} → {url} when configured
 //   POST /v1/billing/portal            → {url} when configured
 //   POST /v1/billing/webhook           generic HMAC or Payhip-signed event sink
+//   GET  /v1/credits                   balances, limits and recent credit ledger
+//   POST /v1/credits/claim             {code} claim access / AI credits granted by admin
+//   POST /v1/credits/redeem            {credits} turn access credits into Pro time
+//   POST /v1/credits/key               {credits,maxDevices} mint your own limited Pro key
+//   POST /v1/ai/usage                  {units,idempotencyKey} spend AI credits
 //
-//   POST /issue      {email,plan,days} create a signed key (needs ADMIN_TOKEN if set)
+//   POST /issue      {email,plan,days} create a signed key (admin only)
 //   POST /validate   {key}             check signature, expiry and device count
-//   POST /activate   {key,device,name,os} add a computer (max 3)
+//   POST /activate   {key,device,name,os} add a computer (key's device limit)
 //   POST /deactivate {key,device}      free a computer
-//   GET  /stats                        counts (needs ADMIN_TOKEN if set)
+//   GET  /stats                        counts (admin only)
+//   /admin/api/*                       web admin panel (admin role or ADMIN_TOKEN)
+//     GET  session, overview, users, keys, manual-sales, audit
+//     POST user/*, key/*, manual-sale
 //
-// Set LICENSE_SECRET and ADMIN_TOKEN to long random values in production. When this
+// Admin access is either an account in ADMIN_EMAILS (role=admin) or a Bearer
+// ADMIN_TOKEN. If neither is configured every admin route is denied. When this
 // server also serves the static folder, GET /js/config.js is rewritten so the browser
 // uses apiBase:'/' — no separate build step is needed for the simplest deployment.
 // See README.md here and DEPLOY.md in the dashboard root.
@@ -87,11 +96,21 @@ const CHECKOUT = {
   year: process.env.CHECKOUT_URL_YEARLY || '',
   portal: process.env.CHECKOUT_PORTAL_URL || '',
 };
+// Admin access can be granted by email (role on the account) and/or by the single token.
+// Both are optional by design, but an admin route must never be open when neither exists.
+const ADMIN_EMAILS = new Set((process.env.ADMIN_EMAILS || '').split(',').map((s) => String(s).trim().toLowerCase()).filter(Boolean));
+const AUDIT_FILE = process.env.AUDIT_FILE || path.join(path.dirname(DATA), 'audit.jsonl');
+const ACCESS_CREDIT_DAYS = Math.max(1, Number(process.env.ACCESS_CREDIT_DAYS || 30));
+const MAX_KEY_DEVICES = Math.min(10, Math.max(1, Number(process.env.MAX_KEY_DEVICES || 5)));
+// Keep these in step with js/config.js → CONFIG.legal. The server records what the client accepted.
+const TERMS_VERSION = process.env.TERMS_VERSION || '2026-11-19';
+const PRIVACY_VERSION = process.env.PRIVACY_VERSION || '2026-11-19';
 const isDev = SECRET.startsWith('wicked-imgui-DEV');
 
 if (isDev) console.warn('⚠  LICENSE_SECRET is the dev default. Set a real secret before exposing this server.');
 fs.mkdirSync(path.dirname(DATA), { recursive: true });
 fs.mkdirSync(path.dirname(ACCOUNTS_FILE), { recursive: true });
+fs.mkdirSync(path.dirname(AUDIT_FILE), { recursive: true });
 
 // ---------------------------------------------------------------- storage
 function readFile(file, fallback) {
@@ -104,8 +123,76 @@ function writeFile(file, db) {
 }
 const read = () => readFile(DATA, { keys: {} });
 const write = (db) => writeFile(DATA, db);
-const readAccounts = () => readFile(ACCOUNTS_FILE, { users: {}, sessions: {}, tokens: {} });
+const readAccounts = () => {
+  const db = readFile(ACCOUNTS_FILE, {});
+  db.users ||= {}; db.sessions ||= {}; db.tokens ||= {};
+  db.grants ||= {}; db.manualSales ||= []; db.ledger ||= []; db.aiSpend ||= {};
+  db.announcement ||= { text: '', level: 'info', enabled: false, updatedAt: null };
+  return db;
+};
 const writeAccounts = (db) => writeFile(ACCOUNTS_FILE, db);
+
+/** Older accounts predate credits and entitlements — fill them in on every read. */
+function ensureAccountShape(u) {
+  if (!u) return u;
+  u.credits ||= { access: 0, ai: 0 };
+  u.entitlement ||= { maxDevices: MAX_DEVICES, source: 'subscription' };
+  u.invoices ||= []; u.devices ||= []; u.redeemed ||= [];
+  return u;
+}
+function ledger(db, entry) {
+  db.ledger ||= [];
+  db.ledger.unshift({ at: new Date().toISOString(), ...entry });
+  db.ledger = db.ledger.slice(0, 5000);
+}
+const maskKey = (value) => {
+  const s = String(value || '');
+  return s.length > 18 ? s.slice(0, 12) + '…' + s.slice(-5) : s;
+};
+
+// Append-only audit log. Secrets (passwords, tokens, hashes, signatures) are never written.
+let auditLines = 0;
+function audit(action, detail = {}, req, actor = 'system') {
+  try {
+    const clean = {};
+    for (const [k, v] of Object.entries(detail)) {
+      if (['actor', 'target', 'result', 'password', 'token', 'hash', 'sig', 'cookie', 'authorization', 'apiKey'].includes(k)) continue;
+      if (typeof v === 'string') clean[k] = v.slice(0, 300);
+      else if (typeof v === 'number' || typeof v === 'boolean') clean[k] = v;
+    }
+    const entry = {
+      at: new Date().toISOString(), action,
+      actor: detail.actor || actor,
+      target: String(detail.target || '').slice(0, 200),
+      result: detail.result || 'ok',
+      detail: clean,
+      ip: req?.socket?.remoteAddress || '',
+      ua: String(req?.headers?.['user-agent'] || '').slice(0, 160),
+    };
+    fs.appendFileSync(AUDIT_FILE, JSON.stringify(entry) + '\n');
+    if (++auditLines % 200 === 0) {
+      const lines = fs.readFileSync(AUDIT_FILE, 'utf8').split('\n').filter(Boolean);
+      if (lines.length > 5000) fs.writeFileSync(AUDIT_FILE, lines.slice(-5000).join('\n') + '\n');
+    }
+  } catch (err) {
+    console.warn('Audit write failed:', err.message);
+  }
+}
+function readAudit({ limit = 100, action = '', actor = '', q = '' } = {}) {
+  let lines;
+  try { lines = fs.readFileSync(AUDIT_FILE, 'utf8').split('\n').filter(Boolean); } catch { return []; }
+  const needle = String(q || '').trim().toLowerCase();
+  const rows = [];
+  for (let i = lines.length - 1; i >= 0 && rows.length < limit; i--) {
+    let e;
+    try { e = JSON.parse(lines[i]); } catch { continue; }
+    if (action && !String(e.action || '').toLowerCase().includes(String(action).toLowerCase())) continue;
+    if (actor && !String(e.actor || '').toLowerCase().includes(String(actor).toLowerCase())) continue;
+    if (needle && !JSON.stringify(e).toLowerCase().includes(needle)) continue;
+    rows.push(e);
+  }
+  return rows;
+}
 
 function sign(parts) {
   return crypto.createHmac('sha256', SECRET).update(parts.join('|')).digest('hex').slice(0, 8).toUpperCase();
@@ -161,8 +248,21 @@ function readBody(req) {
     req.on('error', reject);
   });
 }
-function adminOK(req) {
-  return !ADMIN || req.headers.authorization === 'Bearer ' + ADMIN;
+function isAdminUser(u) {
+  return !!u && (u.role === 'admin' || ADMIN_EMAILS.has(u.email));
+}
+/** Admin panel and license tools accept either a configured account session or the token. */
+function adminAuth(req) {
+  if (ADMIN && req.headers.authorization === 'Bearer ' + ADMIN) return { mode: 'token', actor: 'token' };
+  const token = cookieToken(req);
+  const db = readAccounts();
+  const session = db.sessions[token];
+  const u = session && new Date(session.expires).getTime() >= Date.now() ? ensureAccountShape(db.users[session.email]) : null;
+  if (u && !u.disabled && isAdminUser(u)) return { mode: 'account', actor: u.email, db, u };
+  if (!ADMIN && ADMIN_EMAILS.size === 0) {
+    throw fail('admin_unconfigured', 503, 'Admin access is not configured. Set ADMIN_EMAILS or ADMIN_TOKEN on the server.');
+  }
+  throw fail('unauthorized', 401, 'Admin access required.');
 }
 
 // ---------------------------------------------------------------- accounts
@@ -183,14 +283,15 @@ const addMonths = (iso, n) => { const d = new Date(iso); d.setMonth(d.getMonth()
 const addDays = (n) => new Date(Date.now() + n * 86400000).toISOString();
 const addYear = (iso) => { const d = new Date(iso); d.setFullYear(d.getFullYear() + 1); return d.toISOString(); };
 
-function newUser({ name, email, password, plan = 'free' }) {
+function newUser({ name, email, password, plan = 'free', terms = null }) {
   const emailKey = normalEmail(email);
-  const issued = issue({ email: emailKey, plan, days: 3650 });
+  const issued = issue({ email: emailKey, plan, days: 3650, source: 'registration' });
   return {
     id: 'usr_' + crypto.randomBytes(8).toString('hex'),
     name: String(name || '').trim() || emailKey.split('@')[0],
     email: emailKey,
     plan,
+    role: ADMIN_EMAILS.has(emailKey) ? 'admin' : 'user',
     hash: hashPassword(password),
     created: new Date().toISOString(),
     // With no email delivery configured, do not claim a link was sent or gate the UI on it.
@@ -200,6 +301,16 @@ function newUser({ name, email, password, plan = 'free' }) {
     subscription: null,
     devices: [],
     redeemed: [],
+    credits: { access: 0, ai: 0 },
+    entitlement: { maxDevices: MAX_DEVICES, source: 'registration' },
+    // Versioned acceptance, recorded at the moment the account is created.
+    terms: terms ? {
+      version: String(terms.version || '').slice(0, 32),
+      privacyVersion: String(terms.privacyVersion || '').slice(0, 32),
+      acceptedAt: new Date().toISOString(),
+      text: 'signup-checkbox',
+    } : null,
+    disabled: false,
   };
 }
 
@@ -210,14 +321,17 @@ function publicAccount(u) {
     user: {
       id: u.id, name: u.name, email: u.email, plan: u.plan,
       created: u.created, emailVerified: u.emailVerified !== false,
+      role: isAdminUser(u) ? 'admin' : 'user',
     },
     license: {
       key: u.licenseKey,
       plan: u.plan,
-      maxDevices: MAX_DEVICES,
+      maxDevices: (u.entitlement && u.entitlement.maxDevices) || MAX_DEVICES,
       updatesUntil: u.proUntil || (sub ? sub.renewsAt : null) || (u.plan === 'pro' ? addMonths(new Date().toISOString(), 1) : null),
       proUntil: u.proUntil || null,
     },
+    credits: { access: u.credits?.access || 0, ai: u.credits?.ai || 0, accessDays: ACCESS_CREDIT_DAYS },
+    entitlement: u.entitlement || { maxDevices: MAX_DEVICES, source: 'registration' },
     subscription: sub,
     yearlyAvailable: true,
     devices: u.devices || [],
@@ -250,9 +364,10 @@ function requireUser(req) {
   const db = readAccounts();
   const session = db.sessions[token];
   if (!session || new Date(session.expires).getTime() < Date.now()) throw fail('unauthorized', 401, 'Sign in to continue.');
-  const u = db.users[session.email];
+  const u = ensureAccountShape(db.users[session.email]);
   if (!u) throw fail('unauthorized', 401, 'Sign in to continue.');
   if (u.disabled) throw fail('account_disabled', 403, 'This account has been disabled.');
+  if (applyPendingGrants(db, u, req, 'request')) writeAccounts(db);
   return { db, token, u };
 }
 function rememberDevice(u, req) {
@@ -306,19 +421,78 @@ function useToken(db, token, type) {
   return rec;
 }
 
+// ---------------------------------------------------------------- credits and grants
+/**
+ * Two separate balances:
+ *  - access: prepaid Pro days. One credit = ACCESS_CREDIT_DAYS, redeemable for your own
+ *    Pro time or spendable to mint a transferable, limited Pro key.
+ *  - ai: metered units for AI actions. The local full-access build stays offline; this
+ *    ledger is authoritative for anything wired to the account API.
+ * Grants can be issued before an account exists and are claimed automatically on login.
+ */
+function createGrant(db, { email, kind, value = 0, days = 0, maxDevices = 0, source = 'manual', note = '', actor = 'admin' }) {
+  const code = 'WI-' + crypto.randomBytes(5).toString('hex').toUpperCase();
+  db.grants[code] = {
+    code, email: normalEmail(email), kind, value: Number(value) || 0, days: Number(days) || 0,
+    maxDevices: Number(maxDevices) || 0, source: String(source).slice(0, 80),
+    note: String(note || '').slice(0, 200), created: new Date().toISOString(),
+    claimedAt: null, claimedBy: null, actor: String(actor).slice(0, 120),
+  };
+  return db.grants[code];
+}
+function applyGrant(db, u, grant) {
+  if (grant.claimedAt) return false;
+  ensureAccountShape(u);
+  if (grant.kind === 'access') u.credits.access += Number(grant.value) || 0;
+  else if (grant.kind === 'ai') u.credits.ai += Number(grant.value) || 0;
+  else if (grant.kind === 'pro') {
+    const span = Math.max(1, Number(grant.days) || 30);
+    const until = Date.now() + span * 86400000;
+    const previous = new Date(u.proUntil || 0).getTime() || 0;
+    u.plan = 'pro';
+    u.proUntil = new Date(Math.max(Date.now(), previous, until)).toISOString();
+    if (Number(grant.maxDevices) > 0) u.entitlement.maxDevices = Math.max(u.entitlement.maxDevices || 0, Math.min(MAX_KEY_DEVICES, Number(grant.maxDevices)));
+    u.entitlement.source = String(grant.source || 'manual');
+  } else return false;
+  grant.claimedAt = new Date().toISOString();
+  grant.claimedBy = u.email;
+  ledger(db, { action: 'grant.claim', email: u.email, kind: grant.kind, value: grant.value || grant.days, ref: grant.code });
+  return true;
+}
+function applyPendingGrants(db, u, req, source) {
+  let count = 0;
+  for (const grant of Object.values(db.grants)) {
+    if (!grant.claimedAt && grant.email === u.email && applyGrant(db, u, grant)) count++;
+  }
+  if (count) audit('credits.grant_auto', { target: u.email, count, source }, req);
+  return count;
+}
+
 // ---------------------------------------------------------------- license keys
-function issue({ email, plan = 'pro', days = 365 }) {
+/** Keys carry their own limits. Older keys without those fields keep the global defaults. */
+const keyMax = (rec) => Math.min(MAX_KEY_DEVICES, Math.max(1, Number(rec?.maxDevices) || MAX_DEVICES));
+function issue({ email, plan = 'pro', days = 365, maxDevices, maxRedemptions = 0, aiCredits = 0, note = '', source = 'admin', issuedBy = 'system' }) {
   if (!validEmail(normalEmail(email))) throw fail('invalid_request', 400, 'A valid email is required');
   if (!['free', 'pro'].includes(plan)) throw fail('invalid_request', 400, 'plan must be free or pro');
+  const span = Number(days);
+  if (!Number.isFinite(span) || span < 1 || span > 36500) throw fail('invalid_request', 400, 'days must be between 1 and 36500');
+  const devices = Math.min(MAX_KEY_DEVICES, Math.max(1, Number(maxDevices) || MAX_DEVICES));
+  const redemptions = Math.min(100, Math.max(0, Number(maxRedemptions) || 0));
+  const credits = Math.min(100000, Math.max(0, Number(aiCredits) || 0));
   const emailKey = normalEmail(email);
   const nonce = crypto.randomBytes(12).toString('hex').toUpperCase();
-  const expires = new Date(Date.now() + Number(days) * 86400000).toISOString();
+  const expires = new Date(Date.now() + span * 86400000).toISOString();
   const sig = sign([emailKey, plan, expires, nonce]);
   const key = `SWI-${plan.toUpperCase()}-${nonce.slice(0, 8)}-${nonce.slice(8, 16)}-${nonce.slice(16, 24)}-${sig}`;
   const db = read();
-  db.keys[key] = { email: emailKey, plan, expires, nonce, sig, devices: {}, created: new Date().toISOString() };
+  db.keys[key] = {
+    email: emailKey, plan, expires, nonce, sig, devices: {}, created: new Date().toISOString(),
+    maxDevices: devices, maxRedemptions: redemptions, redeemedBy: [],
+    aiCredits: credits, note: String(note || '').slice(0, 200), source, issuedBy: String(issuedBy).slice(0, 120), revoked: false,
+  };
   write(db);
-  return { key, plan, expires, maxDevices: MAX_DEVICES };
+  audit('key.issue', { target: emailKey, key: maskKey(key), plan, days: span, maxDevices: devices, maxRedemptions: redemptions, aiCredits: credits, source }, null, issuedBy);
+  return { key, plan, expires, maxDevices: devices, maxRedemptions: redemptions };
 }
 function lookup(key) {
   const db = read();
@@ -331,26 +505,38 @@ function validate({ key }) {
   if (!hit) return { valid: false, error: 'That license key isn’t valid.' };
   const { rec } = hit;
   if (!eq(rec.sig, sign([rec.email, rec.plan, rec.expires, rec.nonce]))) return { valid: false, error: 'That license key isn’t valid.' };
+  if (rec.revoked) return { valid: false, error: 'This license key was revoked.', revoked: true };
   if (new Date(rec.expires).getTime() < Date.now()) return { valid: false, error: 'This license key has expired.', expired: true };
-  return { valid: true, plan: rec.plan, email: rec.email, expires: rec.expires, devices: Object.values(rec.devices), used: Object.keys(rec.devices).length, max: MAX_DEVICES };
+  const usedAccounts = (rec.redeemedBy || []).length;
+  if (rec.maxRedemptions && usedAccounts >= rec.maxRedemptions) return { valid: false, error: 'This license key has already been redeemed.', used: true };
+  return {
+    valid: true, plan: rec.plan, email: rec.email, expires: rec.expires,
+    devices: Object.values(rec.devices || {}), used: Object.keys(rec.devices || {}).length,
+    max: keyMax(rec), maxRedemptions: rec.maxRedemptions || 0, usedAccounts,
+  };
 }
 function activate({ key, device, name = 'This PC', os = '' }) {
   const hit = lookup(key);
   if (!hit) throw fail('invalid_key', 404, 'That license key isn’t valid.');
   if (!device) throw fail('invalid_request', 400, 'A device id is required.');
   const { db, rec } = hit;
-  if (!rec.devices[device] && Object.keys(rec.devices).length >= MAX_DEVICES) throw fail('license_in_use', 409, 'All device slots are used. Sign one out first.');
+  const max = keyMax(rec);
+  rec.devices ||= {};
+  if (!rec.devices[device] && Object.keys(rec.devices).length >= max) throw fail('license_in_use', 409, 'All device slots are used. Sign one out first.');
   rec.devices[device] = { device, name: String(name).slice(0, 80), os: String(os).slice(0, 80), lastSeen: new Date().toISOString() };
   write(db);
-  return { ok: true, used: Object.keys(rec.devices).length, max: MAX_DEVICES };
+  audit('key.activate', { target: rec.email, key: maskKey(key), device: String(device).slice(0, 80) });
+  return { ok: true, used: Object.keys(rec.devices).length, max };
 }
 function deactivate({ key, device }) {
   const hit = lookup(key);
   if (!hit) throw fail('invalid_key', 404, 'That license key isn’t valid.');
   const { db, rec } = hit;
+  rec.devices ||= {};
   delete rec.devices[String(device)];
   write(db);
-  return { ok: true, used: Object.keys(rec.devices).length, max: MAX_DEVICES };
+  audit('key.deactivate', { target: rec.email, key: maskKey(key), device: String(device).slice(0, 80) });
+  return { ok: true, used: Object.keys(rec.devices).length, max: keyMax(rec) };
 }
 
 // ---------------------------------------------------------------- billing events
@@ -494,18 +680,338 @@ function serveStatic(req, res, url) {
   fs.createReadStream(full).pipe(res);
 }
 
+// ---------------------------------------------------------------- admin API
+/** All /admin/api/* routes. Authorised by an admin account session or the admin token. */
+async function adminApi(req, p, body) {
+  const who = adminAuth(req);
+  const actor = who.actor;
+  const db = readAccounts();
+
+  if (req.method === 'GET' && p === '/admin/api/session') return { ok: true, mode: who.mode, actor, role: 'admin' };
+
+  if (req.method === 'GET' && p === '/admin/api/announcement') return db.announcement || { text: '', level: 'info', enabled: false };
+  if (req.method === 'POST' && p === '/admin/api/announcement') {
+    const text = String(body.text || '').trim().slice(0, 300);
+    const enabled = !!body.enabled && !!text;
+    db.announcement = {
+      text: enabled ? text : '',
+      level: body.level === 'warning' ? 'warning' : 'info',
+      enabled,
+      updatedAt: new Date().toISOString(),
+      updatedBy: actor,
+    };
+    writeAccounts(db);
+    audit('announcement.set', { text, level: db.announcement.level, enabled }, req, actor);
+    return { ok: true, announcement: db.announcement };
+  }
+
+  if (req.method === 'GET' && p === '/admin/api/overview') {
+    const lic = read();
+    const users = Object.values(db.users).map(ensureAccountShape);
+    const revenue = (db.manualSales || []).reduce((n, s) => n + (Number(s.amount) || 0), 0);
+    return {
+      accounts: users.length,
+      pro: users.filter((u) => u.plan === 'pro').length,
+      free: users.filter((u) => u.plan !== 'pro').length,
+      admins: users.filter(isAdminUser).length,
+      sessions: Object.keys(db.sessions).length,
+      keys: Object.keys(lic.keys).length,
+      activeKeys: Object.values(lic.keys).filter((k) => !k.revoked && new Date(k.expires).getTime() > Date.now()).length,
+      devices: Object.values(lic.keys).reduce((n, k) => n + Object.keys(k.devices || {}).length, 0),
+      manualSales: (db.manualSales || []).length,
+      revenue: '$' + revenue.toFixed(2),
+      accessCredits: users.reduce((n, u) => n + (u.credits.access || 0), 0),
+      aiCredits: users.reduce((n, u) => n + (u.credits.ai || 0), 0),
+      pendingGrants: Object.values(db.grants).filter((g) => !g.claimedAt).length,
+      events: readAudit({ limit: 6 }),
+    };
+  }
+
+  if (req.method === 'GET' && p === '/admin/api/users') {
+    return Object.values(db.users).map(ensureAccountShape).map((u) => {
+      const seen = (u.devices || []).map((d) => new Date(d.lastSeen || 0).getTime()).filter(Number).sort((a, b) => b - a)[0] || 0;
+      return {
+        email: u.email, name: u.name, plan: u.plan, role: isAdminUser(u) ? 'admin' : 'user',
+        disabled: !!u.disabled, created: u.created, proUntil: u.proUntil || null,
+        credits: { ...u.credits }, maxDevices: u.entitlement.maxDevices,
+        source: u.entitlement.source || '', devices: (u.devices || []).length,
+        sessions: Object.values(db.sessions).filter((s) => s.email === u.email).length,
+        invoices: (u.invoices || []).length, lastSeen: seen || null,
+        termsVersion: u.terms?.version || null,
+      };
+    }).sort((a, b) => String(b.created).localeCompare(String(a.created)));
+  }
+
+  const targetOf = (body) => normalEmail(body.email);
+  const findUser = (email) => {
+    const u = ensureAccountShape(db.users[email]);
+    if (!u) throw fail('not_found', 404, 'No account with that email.');
+    return u;
+  };
+
+  if (req.method === 'POST' && p === '/admin/api/user/create') {
+    const email = normalEmail(body.email);
+    if (!validEmail(email)) throw fail('invalid_email', 400, 'Enter a valid email address.');
+    if (String(body.password || '').length < 10) throw fail('weak_password', 400, 'Use at least 10 characters.');
+    if (db.users[email]) throw fail('email_taken', 409, 'That email already has an account.');
+    const u = newUser({ name: body.name, email, password: body.password, plan: 'free' });
+    if (body.plan === 'pro') {
+      u.plan = 'pro';
+      u.proUntil = addDays(Math.min(36500, Math.max(1, Number(body.days) || 30)));
+      u.entitlement.source = 'admin';
+    }
+    db.users[email] = u;
+    applyPendingGrants(db, u, req, 'admin_create');
+    writeAccounts(db);
+    audit('admin.user_create', { target: email, plan: u.plan }, req, actor);
+    return { ok: true, email };
+  }
+
+  if (req.method === 'POST' && p === '/admin/api/user/role') {
+    const email = targetOf(body);
+    if (email === who.actor) throw fail('cannot_change_self', 400, 'Use another admin account to change your own role.');
+    const u = findUser(email);
+    const next = body.role === 'admin' ? 'admin' : 'user';
+    if (next === 'user' && ADMIN_EMAILS.has(email)) throw fail('invalid_request', 400, 'This admin is configured by ADMIN_EMAILS on the server. Remove it there first.');
+    u.role = next;
+    writeAccounts(db);
+    audit('admin.user_role', { target: email, role: next }, req, actor);
+    return { ok: true, role: next };
+  }
+
+  if (req.method === 'POST' && p === '/admin/api/user/plan') {
+    const email = targetOf(body);
+    const u = findUser(email);
+    const plan = body.plan === 'free' ? 'free' : 'pro';
+    u.plan = plan;
+    u.proUntil = plan === 'pro' ? addDays(Math.min(36500, Math.max(1, Number(body.days) || 30))) : null;
+    u.entitlement.maxDevices = Math.min(MAX_KEY_DEVICES, Math.max(1, Number(body.maxDevices) || MAX_DEVICES));
+    u.entitlement.source = 'admin';
+    writeAccounts(db);
+    audit('admin.user_plan', { target: email, plan, days: body.days || 0, maxDevices: u.entitlement.maxDevices }, req, actor);
+    return { ok: true, plan: u.plan, proUntil: u.proUntil };
+  }
+
+  if (req.method === 'POST' && p === '/admin/api/user/disable') {
+    const email = targetOf(body);
+    if (email === who.actor) throw fail('cannot_disable_self', 400, 'You cannot disable your own admin account.');
+    const u = findUser(email);
+    u.disabled = !!body.disabled;
+    if (u.disabled) for (const t of Object.keys(db.sessions)) if (db.sessions[t].email === email) delete db.sessions[t];
+    writeAccounts(db);
+    audit('admin.user_disable', { target: email, disabled: u.disabled }, req, actor);
+    return { ok: true, disabled: u.disabled };
+  }
+
+  if (req.method === 'POST' && p === '/admin/api/user/password') {
+    const email = targetOf(body);
+    const u = findUser(email);
+    if (String(body.password || '').length < 10) throw fail('weak_password', 400, 'Use at least 10 characters.');
+    u.hash = hashPassword(body.password);
+    for (const t of Object.keys(db.sessions)) if (db.sessions[t].email === email) delete db.sessions[t];
+    writeAccounts(db);
+    audit('admin.user_password', { target: email }, req, actor);
+    return { ok: true };
+  }
+
+  if (req.method === 'POST' && p === '/admin/api/user/credits') {
+    const email = targetOf(body);
+    const u = findUser(email);
+    const kind = body.kind === 'access' ? 'access' : 'ai';
+    const value = Math.floor(Number(body.value));
+    if (!Number.isFinite(value) || value === 0 || Math.abs(value) > 100000) throw fail('invalid_request', 400, 'Enter an amount between -100000 and 100000, excluding 0.');
+    if (value < 0 && u.credits[kind] + value < 0) throw fail('insufficient_credits', 402, 'That account does not have enough credits to remove.');
+    u.credits[kind] += value;
+    ledger(db, { action: value > 0 ? 'credit.grant' : 'credit.adjust', email, kind, value, reason: String(body.note || '').slice(0, 200), actor });
+    writeAccounts(db);
+    audit('credits.adjust', { target: email, kind, value, note: body.note || '' }, req, actor);
+    return { ok: true, credits: u.credits };
+  }
+
+  if (req.method === 'POST' && p === '/admin/api/user/key') {
+    const email = targetOf(body);
+    findUser(email);
+    const out = issue({
+      email, plan: body.plan === 'free' ? 'free' : 'pro', days: body.days,
+      maxDevices: body.maxDevices, maxRedemptions: body.maxRedemptions,
+      aiCredits: body.aiCredits, note: body.note, source: 'admin_panel', issuedBy: actor,
+    });
+    return { ok: true, ...out };
+  }
+
+  if (req.method === 'GET' && p === '/admin/api/keys') {
+    const lic = read();
+    return Object.entries(lic.keys).map(([key, k]) => ({
+      key, email: k.email, plan: k.plan, expires: k.expires, created: k.created,
+      maxDevices: keyMax(k), devices: Object.keys(k.devices || {}).length,
+      maxRedemptions: k.maxRedemptions || 0, redeemed: (k.redeemedBy || []).length,
+      aiCredits: k.aiCredits || 0, note: k.note || '', source: k.source || '',
+      issuedBy: k.issuedBy || '', revoked: !!k.revoked,
+    })).sort((a, b) => String(b.created).localeCompare(String(a.created)));
+  }
+
+  if (req.method === 'POST' && p === '/admin/api/key/issue') {
+    const count = Math.min(50, Math.max(1, Number(body.count) || 1));
+    const keys = [];
+    for (let i = 0; i < count; i++) {
+      keys.push(issue({
+        email: body.email, plan: body.plan, days: body.days, maxDevices: body.maxDevices,
+        maxRedemptions: body.maxRedemptions, aiCredits: body.aiCredits,
+        note: body.note, source: 'admin_batch', issuedBy: actor,
+      }));
+    }
+    return { ok: true, keys };
+  }
+
+  if (req.method === 'POST' && p === '/admin/api/key/revoke') {
+    const key = String(body.key || '').trim().toUpperCase();
+    const lic = read();
+    const rec = lic.keys[key];
+    if (!rec) throw fail('invalid_key', 404, 'That key does not exist.');
+    rec.revoked = true;
+    write(lic);
+    audit('key.revoke', { target: rec.email, key: maskKey(key), note: body.note || '' }, req, actor);
+    return { ok: true };
+  }
+
+  if (req.method === 'GET' && p === '/admin/api/manual-sales') return (db.manualSales || []).slice(0, 500);
+
+  if (req.method === 'POST' && p === '/admin/api/manual-sale') {
+    const email = normalEmail(body.email);
+    if (!validEmail(email)) throw fail('invalid_email', 400, 'Enter a valid email address.');
+    const amount = Number(body.amount);
+    if (!Number.isFinite(amount) || amount < 0 || amount > 1000000) throw fail('invalid_request', 400, 'Enter a valid amount.');
+    const method = String(body.method || 'other').trim().slice(0, 60) || 'other';
+    const days = Math.min(3650, Math.max(0, Math.floor(Number(body.days) || 0)));
+    const access = Math.min(100000, Math.max(0, Math.floor(Number(body.accessCredits) || 0)));
+    const ai = Math.min(100000, Math.max(0, Math.floor(Number(body.aiCredits) || 0)));
+    if (!days && !access && !ai) throw fail('invalid_request', 400, 'Give at least some Pro days or credits.');
+    const note = String(body.note || '').slice(0, 200);
+    const id = 'MS-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(2).toString('hex').toUpperCase();
+    const codes = [];
+    if (days) codes.push(createGrant(db, { email, kind: 'pro', days, maxDevices: body.maxDevices, source: method, note, actor }).code);
+    if (access) codes.push(createGrant(db, { email, kind: 'access', value: access, source: method, note, actor }).code);
+    if (ai) codes.push(createGrant(db, { email, kind: 'ai', value: ai, source: method, note, actor }).code);
+    const u = ensureAccountShape(db.users[email]);
+    if (u) {
+      for (const code of codes) applyGrant(db, u, db.grants[code]);
+      if (amount > 0) {
+        addInvoice(u, {
+          invoiceId: id, date: isoDate(new Date().toISOString()), amount: '$' + amount.toFixed(2),
+          description: `Wicked Pro — manual payment (${method})`,
+        });
+      }
+    }
+    const sale = {
+      id, email, name: String(body.name || '').slice(0, 80), amount,
+      currency: String(body.currency || 'USD').slice(0, 8).toUpperCase(), method,
+      days, accessCredits: access, aiCredits: ai, note, codes,
+      accountExists: !!u, created: new Date().toISOString(), actor,
+    };
+    db.manualSales.unshift(sale);
+    db.manualSales = db.manualSales.slice(0, 2000);
+    writeAccounts(db);
+    audit('manual_sale.create', { target: email, amount, method, days, access, ai, codes: codes.join(',') }, req, actor);
+    return { ok: true, sale };
+  }
+
+  if (req.method === 'GET' && p === '/admin/api/audit') {
+    const limit = Math.min(500, Math.max(1, Number(new URL(req.url, 'http://localhost').searchParams.get('limit')) || 100));
+    const q = new URL(req.url, 'http://localhost').searchParams;
+    return readAudit({ limit, action: q.get('action') || '', actor: q.get('actor') || '', q: q.get('q') || '' });
+  }
+
+  return undefined;
+}
+
+// ---------------------------------------------------------------- customer credit routes
+function creditsView(db, u) {
+  ensureAccountShape(u);
+  return {
+    credits: { ...u.credits, accessDays: ACCESS_CREDIT_DAYS },
+    entitlement: u.entitlement || { maxDevices: MAX_DEVICES, source: 'registration' },
+    ledger: (db.ledger || []).filter((e) => e.email === u.email).slice(0, 30),
+    pending: Object.values(db.grants || {})
+      .filter((g) => !g.claimedAt && g.email === u.email)
+      .map((g) => ({ code: g.code, kind: g.kind, value: g.value, days: g.days, note: g.note })),
+  };
+}
+function claimCredit(db, u, code) {
+  const grant = db.grants[String(code || '').trim().toUpperCase()];
+  if (!grant || grant.email !== u.email) throw fail('invalid_key', 400, 'That credit code is not valid for this account.');
+  if (grant.claimedAt) throw fail('already_redeemed', 409, 'That credit code was already claimed.');
+  if (!applyGrant(db, u, grant)) throw fail('invalid_request', 400, 'That credit code cannot be claimed.');
+  writeAccounts(db);
+  audit('credits.claim', { target: u.email, code: grant.code, kind: grant.kind, value: grant.value || grant.days }, null, u.email);
+  return creditsView(db, u);
+}
+function redeemAccess(db, u, value) {
+  const credits = Math.floor(Number(value));
+  if (!Number.isFinite(credits) || credits < 1) throw fail('invalid_request', 400, 'Enter at least one access credit.');
+  if (credits > u.credits.access) throw fail('insufficient_credits', 402, 'You do not have that many access credits.');
+  const days = credits * ACCESS_CREDIT_DAYS;
+  const base = Math.max(Date.now(), new Date(u.proUntil || 0).getTime() || 0);
+  u.credits.access -= credits;
+  u.plan = 'pro';
+  u.entitlement ||= { maxDevices: MAX_DEVICES, source: 'access_credits' };
+  u.entitlement.source = 'access_credits';
+  u.proUntil = new Date(base + days * 86400000).toISOString();
+  ledger(db, { action: 'credit.redeem', email: u.email, kind: 'access', value: -credits, days });
+  writeAccounts(db);
+  audit('credits.redeem', { target: u.email, credits, days }, null, u.email);
+  return { ok: true, days, proUntil: u.proUntil, credits: { ...u.credits, accessDays: ACCESS_CREDIT_DAYS } };
+}
+function mintKeyFromCredits(db, u, value, maxDevices) {
+  const credits = Math.floor(Number(value));
+  if (!Number.isFinite(credits) || credits < 1) throw fail('invalid_request', 400, 'Enter at least one access credit.');
+  if (credits > u.credits.access) throw fail('insufficient_credits', 402, 'You do not have that many access credits.');
+  const allowed = (u.entitlement && u.entitlement.maxDevices) || MAX_DEVICES;
+  const devices = Math.min(allowed, MAX_KEY_DEVICES, Math.max(1, Number(maxDevices) || 1));
+  const out = issue({
+    email: u.email, plan: 'pro', days: credits * ACCESS_CREDIT_DAYS,
+    maxDevices: devices, maxRedemptions: 1,
+    note: 'Minted from access credits', source: 'access_credits', issuedBy: u.email,
+  });
+  u.credits.access -= credits;
+  ledger(db, { action: 'credit.key', email: u.email, kind: 'access', value: -credits, ref: out.key });
+  writeAccounts(db);
+  audit('credits.key_mint', { target: u.email, credits, maxDevices: devices }, null, u.email);
+  return { ok: true, ...out, credits: { ...u.credits, accessDays: ACCESS_CREDIT_DAYS } };
+}
+function spendAiCredits(db, u, { units, idempotencyKey }) {
+  const amount = Math.floor(Number(units));
+  if (!Number.isFinite(amount) || amount < 1 || amount > 10000) throw fail('invalid_request', 400, 'units must be between 1 and 10000.');
+  const idem = String(idempotencyKey || '').trim();
+  if (idem.length < 8 || idem.length > 120) throw fail('invalid_request', 400, 'An idempotencyKey of 8–120 characters is required.');
+  const marker = u.email + '|' + idem;
+  const prior = db.aiSpend[marker];
+  if (prior) return { ok: true, ...prior, cached: true };
+  if (u.credits.ai < amount) throw fail('insufficient_credits', 402, 'Not enough AI credits. Add more before trying again.');
+  u.credits.ai -= amount;
+  const result = { units: amount, remaining: u.credits.ai, at: new Date().toISOString() };
+  db.aiSpend[marker] = result;
+  const markers = Object.keys(db.aiSpend);
+  if (markers.length > 10000) for (const old of markers.slice(0, markers.length - 10000)) delete db.aiSpend[old];
+  ledger(db, { action: 'ai.spend', email: u.email, kind: 'ai', value: -amount, ref: idem });
+  writeAccounts(db);
+  audit('ai.spend', { target: u.email, units: amount, remaining: u.credits.ai }, null, u.email);
+  return { ok: true, ...result, cached: false };
+}
+
 // ---------------------------------------------------------------- API router
 async function api(req, res, p, body, raw) {
-  // license service (unchanged contract)
+  if (p.startsWith('/admin/api/')) return adminApi(req, p, body);
+
+  // license service (same routes, now admin-only)
   if (p === '/issue') {
-    if (!adminOK(req)) throw fail('unauthorized', 401, 'Unauthorized');
+    adminAuth(req);
     return issue(body);
   }
   if (p === '/validate') return validate(body);
   if (p === '/activate') return activate(body);
   if (p === '/deactivate') return deactivate(body);
   if (p === '/stats') {
-    if (!adminOK(req)) throw fail('unauthorized', 401, 'Unauthorized');
+    adminAuth(req);
     const db = read();
     const accounts = readAccounts();
     return {
@@ -526,7 +1032,10 @@ async function api(req, res, p, body, raw) {
   }
 
   // public status/feed (also served to signed-out browsers)
-  if (req.method === 'GET' && p === '/v1/status') return { announcement: null, updates: true };
+  if (req.method === 'GET' && p === '/v1/status') {
+    const a = readAccounts().announcement;
+    return { announcement: a?.enabled && a?.text ? { text: a.text, level: a.level || 'info' } : null, updates: true };
+  }
   if (req.method === 'GET' && p === '/v1/releases') {
     const manifestPath = process.env.RELEASE_MANIFEST || path.join(__dirname, '..', 'downloads', 'latest.json');
     const manifest = readFile(manifestPath, {});
@@ -539,11 +1048,16 @@ async function api(req, res, p, body, raw) {
     const email = normalEmail(body.email);
     if (!validEmail(email)) throw fail('invalid_email', 400, 'Enter a valid email address.');
     if (String(body.password || '').length < 10) throw fail('weak_password', 400, 'Use at least 10 characters.');
+    const terms = body.terms || {};
+    if (!terms.accepted || String(terms.version || '') !== TERMS_VERSION || String(terms.privacyVersion || '') !== PRIVACY_VERSION) {
+      throw fail('terms_required', 422, 'Accept the current Terms and Privacy Policy to create an account.');
+    }
     const db = readAccounts();
     if (db.users[email]) throw fail('email_taken', 409, 'An account with this email already exists.');
-    const u = newUser({ name: body.name, email, password: body.password });
+    const u = newUser({ name: body.name, email, password: body.password, terms });
     rememberDevice(u, req);
     db.users[email] = u;
+    applyPendingGrants(db, u, req, 'registration');
     startSession(res, db, email);
     return publicAccount(u);
   }
@@ -551,10 +1065,11 @@ async function api(req, res, p, body, raw) {
     rateLimit(req, 'login');
     const email = normalEmail(body.email);
     const db = readAccounts();
-    const u = db.users[email];
+    const u = ensureAccountShape(db.users[email]);
     if (!u || !verifyPassword(body.password, u.hash)) throw fail('invalid_credentials', 401, 'Wrong email or password.');
     if (u.disabled) throw fail('account_disabled', 403, 'This account has been disabled.');
     rememberDevice(u, req);
+    applyPendingGrants(db, u, req, 'login');
     writeAccounts(db);
     startSession(res, db, email);
     return publicAccount(u);
@@ -593,14 +1108,23 @@ async function api(req, res, p, body, raw) {
     const token = cookieToken(req);
     const db = readAccounts();
     const s = db.sessions[token];
-    const u = s && new Date(s.expires).getTime() >= Date.now() ? db.users[s.email] : null;
-    return u ? publicAccount(u) : { user: null };
+    const u = s && new Date(s.expires).getTime() >= Date.now() ? ensureAccountShape(db.users[s.email]) : null;
+    if (!u) return { user: null };
+    if (applyPendingGrants(db, u, req, 'session')) writeAccounts(db);
+    return publicAccount(u);
   }
 
   // everything below requires a cookie
   const { db, token, u } = requireUser(req);
 
   if (p === '/v1/account' && req.method === 'GET') return publicAccount(u);
+
+  if (req.method === 'GET' && p === '/v1/credits') return creditsView(db, u);
+  if (req.method === 'POST' && p === '/v1/credits/claim') return claimCredit(db, u, body.code);
+  if (req.method === 'POST' && p === '/v1/credits/redeem') return redeemAccess(db, u, body.credits);
+  if (req.method === 'POST' && p === '/v1/credits/key') return mintKeyFromCredits(db, u, body.credits, body.maxDevices);
+  if (req.method === 'POST' && p === '/v1/ai/usage') return spendAiCredits(db, u, body);
+
   if (p === '/v1/auth/logout') {
     delete db.sessions[token];
     writeAccounts(db);
@@ -660,18 +1184,31 @@ async function api(req, res, p, body, raw) {
   if (p === '/v1/account/redeem') {
     const key = String(body.key || '').trim().toUpperCase();
     const check = validate({ key });
-    if (!check.valid) throw fail(check.expired ? 'key_expired' : 'invalid_key', 400, check.error);
+    if (!check.valid) {
+      const code = check.used ? 'key_used' : check.expired ? 'key_expired' : 'invalid_key';
+      throw fail(code, check.used ? 409 : 400, check.error);
+    }
     const lic = read();
     const rec = lic.keys[key];
     if (rec.account && rec.account !== u.email) throw fail('key_used', 409, 'This license key has already been used on another account.');
     if ((u.redeemed || []).includes(key)) throw fail('already_redeemed', 409, 'You already redeemed this key.');
+    if (rec.maxRedemptions && (rec.redeemedBy || []).length >= rec.maxRedemptions) throw fail('key_used', 409, 'This license key has reached its redemption limit.');
     rec.account = u.email;
+    rec.redeemedBy = [...(rec.redeemedBy || []), u.email];
     write(lic);
     u.plan = 'pro';
     u.licenseKey = key;
     u.proUntil = rec.expires;
     u.redeemed = [...(u.redeemed || []), key];
+    u.entitlement ||= { maxDevices: MAX_DEVICES, source: 'key' };
+    u.entitlement.maxDevices = keyMax(rec);
+    u.entitlement.source = 'key';
+    if (rec.aiCredits > 0) {
+      u.credits.ai += rec.aiCredits;
+      ledger(db, { action: 'key.credits', email: u.email, kind: 'ai', value: rec.aiCredits, ref: key });
+    }
     writeAccounts(db);
+    audit('key.redeem', { target: u.email, key: maskKey(key), aiCredits: rec.aiCredits || 0 }, req, u.email);
     return publicAccount(u);
   }
   if (p === '/v1/billing/checkout') {
@@ -709,7 +1246,7 @@ const server = http.createServer(async (req, res) => {
     if (raw) {
       try { body = JSON.parse(raw); } catch { throw fail('invalid_request', 400, 'Body must be JSON.'); }
     }
-    if (p.startsWith('/v1/') || ['/issue', '/validate', '/activate', '/deactivate', '/stats'].includes(p)) {
+    if (p.startsWith('/v1/') || p.startsWith('/admin/api/') || ['/issue', '/validate', '/activate', '/deactivate', '/stats'].includes(p)) {
       const out = await api(req, res, p, body, raw);
       if (out === undefined) return reply(res, 404, { error: 'not_found', message: 'Not found' });
       return reply(res, 200, out);

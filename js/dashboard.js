@@ -7,10 +7,11 @@ import { showAnnouncement } from './announce.js';
 import { hasLocalSession, preview as previewAuth } from './auth-preview.js';
 import { validateKey, activateKey } from './license.js';
 
-const VIEWS = { overview: 'Overview', license: 'License', downloads: 'Downloads', devices: 'Devices', billing: 'Billing', settings: 'Settings', changelog: 'Changelog' };
+const VIEWS = { overview: 'Overview', license: 'License', downloads: 'Downloads', devices: 'Devices', billing: 'Billing', credits: 'Credits', settings: 'Settings', changelog: 'Changelog' };
 const PRO_PERKS = ['Local full-access build — no sign-in or license key', 'Build & Run (F5) to a real .exe', 'Wicked Local offline AI: edit projects by chat with no key or network', 'C++, C# and Rust, with source export', 'Two-way code sync and custom code', 'All widgets, templates, effects and backgrounds', `Up to ${CONFIG.maxDevices} computers, commercial use`];
 
 let acc = null;
+let creditData = null;
 let releases = [];
 let keyShown = false;
 let updateState = { status: 'idle', manifest: null, message: 'Update feed ready — check any time.' };
@@ -462,6 +463,102 @@ function supportCard() {
     </div>`;
 }
 
+let lastMintedKey = '';
+
+async function refreshCredits() {
+  try {
+    creditData = await auth.credits();
+    if (acc && creditData?.credits) acc.credits = creditData.credits;
+  } catch (err) {
+    toast(errorText(err), 'error');
+    return;
+  }
+  renderCredits();
+}
+
+function renderCredits() {
+  const data = creditData || { credits: acc.credits || { access: 0, ai: 0, accessDays: CONFIG.credits?.accessDays || 30 }, ledger: [], pending: [] };
+  const c = data.credits || {};
+  const days = Number(c.accessDays || CONFIG.credits?.accessDays || 30);
+  const ledger = data.ledger || [];
+  const pending = data.pending || [];
+  const actionLabel = (e) => ({
+    'credit.redeem': 'Redeemed Pro time', 'credit.key': 'Minted a Pro key', 'credit.grant': 'Credits added',
+    'credit.adjust': 'Credits adjusted', 'ai.spend': 'AI usage', 'grant.claim': 'Claimed a grant', 'key.credits': 'Key credits',
+  }[e.action] || e.action);
+  $('#view-credits').innerHTML = `
+    <div><h2>Credits</h2><p class="sub" style="margin-top:6px">Two separate balances: access credits buy Pro time or a limited Pro key. AI credits are consumed by Wicked-hosted AI actions.</p></div>
+    ${isPreview ? `<div class="notice warn" style="margin-bottom:18px;max-width:960px">${icon('info', 15)}<span>Preview mode — these balances are empty demo data. Nothing here spends money or contacts a server.</span></div>` : ''}
+    <div class="cards two" style="margin-bottom:18px">
+      <div class="card">
+        <div class="card-head">${icon('star', 16)}<h3>Access credits</h3></div>
+        <div class="label">Available</div><div class="big">${Number(c.access || 0)}</div>
+        <p class="small" style="margin-top:10px">One credit = ${days} days of Pro. Redeem for your own account, or mint a one-person Pro key with your seat limit.</p>
+        <div class="row" style="margin-top:14px">
+          <div class="field" style="width:110px"><label for="credit-redeem">Redeem</label><input class="input" id="credit-redeem" type="number" min="1" max="${Number(c.access || 0)}" value="1" ${!c.access || isPreview ? 'disabled' : ''}></div>
+          <button class="btn sm primary" type="button" data-credit-redeem-btn ${!c.access || isPreview ? 'disabled' : ''}>Add Pro time</button>
+          <div class="field" style="width:110px"><label for="credit-key">Mint key</label><input class="input" id="credit-key" type="number" min="1" max="${Number(c.access || 0)}" value="1" ${!c.access || isPreview ? 'disabled' : ''}></div>
+          <div class="field" style="width:110px"><label for="credit-key-devices">Seats</label><select class="input" id="credit-key-devices" ${!c.access || isPreview ? 'disabled' : ''}>${Array.from({ length: Math.min(CONFIG.credits?.maxKeyDevices || 5, Number(acc.entitlement?.maxDevices) || CONFIG.maxDevices) }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('')}</select></div>
+          <button class="btn sm" type="button" data-credit-key-btn ${!c.access || isPreview ? 'disabled' : ''}>Create key</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">${icon('brain', 16)}<h3>AI credits</h3></div>
+        <div class="label">Available</div><div class="big">${Number(c.ai || 0)}</div>
+        <p class="small" style="margin-top:10px">Used by Wicked-hosted AI actions and charged only when an action completes. Repeating the same request with the same idempotency key will not charge twice.</p>
+        <p class="small">The local full-access build stays offline and uses your own provider keys, so it does not spend this balance.</p>
+        <a class="btn sm" href="faq.html">How AI credits work</a>
+      </div>
+    </div>
+    ${lastMintedKey ? `<div class="gen-done" style="margin-bottom:18px"><b>Your limited Pro key</b><span class="small">Give this to someone once. It is valid for the days shown in your receipt and uses the seat limit you chose.</span><textarea class="input" rows="3" readonly id="minted-key">${esc(lastMintedKey)}</textarea><div class="row"><button class="btn sm" type="button" data-copy-minted>${icon('copy', 14)} Copy key</button></div></div>` : ''}
+    ${pending.length ? `<div class="card" style="margin-bottom:18px"><div class="card-head">${icon('key', 16)}<h3>Ready to claim</h3></div><p class="small">These grants were issued to your email. Claim them to add the balance now.</p><div class="table-wrap"><table class="table"><thead><tr><th>Code</th><th>Grant</th><th>Amount</th><th></th></tr></thead><tbody>${pending.map((g) => `<tr><td class="small">${esc(g.code)}</td><td>${esc(g.kind)}</td><td>${esc(g.days ? `${g.days} days` : g.value)}</td><td class="r"><button class="btn sm" type="button" data-claim="${esc(g.code)}" ${isPreview ? 'disabled' : ''}>Claim</button></td></tr>`).join('')}</tbody></table></div><div class="row" style="margin-top:12px"><input class="input" id="credit-code" placeholder="Or paste a credit code" style="max-width:280px"><button class="btn sm" type="button" data-claim-btn ${isPreview ? 'disabled' : ''}>Claim code</button></div></div>` : ''}
+    <div class="card">
+      <div class="card-head">${icon('chart', 16)}<h3>Credit activity</h3></div>
+      ${ledger.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>When</th><th>Activity</th><th>Change</th><th>Reference</th></tr></thead><tbody>${ledger.map((e) => `<tr><td class="small">${esc(fmtDate(e.at))}</td><td>${esc(actionLabel(e))}</td><td class="small">${esc(e.kind || '')} ${e.value > 0 ? '+' : ''}${esc(e.value ?? '')}${e.days ? ` · ${esc(e.days)} days` : ''}</td><td class="small notes-cell">${esc(e.ref || e.reason || '')}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">No credit activity yet.</div>`}
+    </div>`;
+
+  const redeemBtn = $('[data-credit-redeem-btn]');
+  if (redeemBtn) redeemBtn.addEventListener('click', () => busy(redeemBtn, async () => {
+    try {
+      const res = await auth.redeemCredits(Number($('#credit-redeem').value));
+      lastMintedKey = '';
+      await refreshCredits();
+      renderLicense(); renderBilling();
+      toast(`${res.days} days of Wicked Pro added`);
+    } catch (err) { toast(errorText(err), 'error'); }
+  }));
+  const keyBtn = $('[data-credit-key-btn]');
+  if (keyBtn) keyBtn.addEventListener('click', () => busy(keyBtn, async () => {
+    try {
+      const res = await auth.mintCreditKey({ credits: Number($('#credit-key').value), maxDevices: Number($('#credit-key-devices').value) });
+      lastMintedKey = res.key;
+      await refreshCredits();
+      toast('Limited Pro key created');
+    } catch (err) { toast(errorText(err), 'error'); }
+  }));
+  const claimBtn = $('[data-claim-btn]');
+  if (claimBtn) claimBtn.addEventListener('click', () => busy(claimBtn, async () => {
+    try {
+      await auth.claimCredit($('#credit-code').value);
+      await refreshCredits();
+      renderLicense(); renderBilling();
+      toast('Credits claimed');
+    } catch (err) { toast(errorText(err), 'error'); }
+  }));
+  $$('[data-claim]').forEach((b) => b.addEventListener('click', () => busy(b, async () => {
+    try {
+      await auth.claimCredit(b.dataset.claim);
+      await refreshCredits();
+      renderLicense(); renderBilling();
+      toast('Credits claimed');
+    } catch (err) { toast(errorText(err), 'error'); }
+  })));
+  const copyBtn = $('[data-copy-minted]');
+  if (copyBtn) copyBtn.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(lastMintedKey); toast('Key copied'); } catch { toast('Select and copy the key manually', 'error'); }
+  });
+}
+
 function renderBilling() {
   const inv = acc.invoices || [];
   $('#view-billing').innerHTML = `
@@ -638,6 +735,8 @@ function fillUser() {
   chip.className = 'chip ' + (isPro() ? 'pro' : 'free');
   $('[data-verify]').hidden = acc.user.emailVerified !== false;
   $('#verify-to').textContent = acc.user.email;
+  const adminLink = $('[data-admin-link]');
+  if (adminLink) adminLink.hidden = isPreview || acc.user.role !== 'admin';
 }
 $('[data-resend]').addEventListener('click', (e) => busy(e.currentTarget, resend));
 
@@ -649,6 +748,7 @@ function renderAll() {
   renderChangelog();
   renderDevices();
   renderBilling();
+  renderCredits();
   renderSettings();
   $$('[data-upgrade]').forEach((b) => b.addEventListener('click', () => busy(b, upgrade)));
   $$('[data-portal]').forEach((b) => b.addEventListener('click', () => busy(b, manage)));
@@ -732,7 +832,7 @@ addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { menu(false); return; }
   const tag = (e.target?.tagName || '').toLowerCase();
   if (['input', 'textarea', 'select'].includes(tag) || e.target?.isContentEditable || e.ctrlKey || e.metaKey || e.altKey) return;
-  const shortcuts = { '1': 'overview', '2': 'license', '3': 'downloads', '4': 'devices', '5': 'billing', '6': 'settings', 'c': 'changelog' };
+  const shortcuts = { '1': 'overview', '2': 'license', '3': 'downloads', '4': 'devices', '5': 'billing', '6': 'credits', '7': 'settings', 'c': 'changelog' };
   const view = shortcuts[e.key.toLowerCase()];
   if (view && VIEWS[view]) { e.preventDefault(); location.hash = view; }
 });
@@ -764,6 +864,7 @@ async function boot() {
     return;
   }
   try { sessionStorage.removeItem('swi.authTouched'); } catch { /* storage blocked */ }
+  creditData = await auth.credits().catch(() => null);
   releases = (await auth.releases().catch(() => ({ releases: [] }))).releases || [];
   loadBuildHistory();
   if (isPreview) $('[data-preview]').hidden = false;
