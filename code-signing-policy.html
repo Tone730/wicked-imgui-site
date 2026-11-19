@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Code signing policy — Wicked Imgui</title>
+  <meta name="theme-color" content="#0b0c0e">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="css/site.css">
+  <style>.legal { max-width: 820px; margin: 48px auto 96px; } .legal section { margin-bottom: 30px; }</style>
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav wrap" aria-label="Main">
+      <a class="brand" href="./"><img src="assets/logo-mark.svg" alt="">Wicked Imgui</a>
+      <div class="nav-links"><a href="./#downloads">Downloads</a><a href="faq.html">Help &amp; FAQ</a><a href="privacy.html">Privacy &amp; terms</a></div>
+      <div class="nav-actions"><a class="btn sm ghost" href="login.html">Log in</a><a class="btn sm primary" href="signup.html">Get started</a></div>
+    </nav>
+  </header>
+
+  <main class="wrap legal">
+    <h1>Code signing policy</h1>
+    <p class="sub">Last reviewed: 18 November 2026 · Wicked Imgui, operated by an individual developer in Florida, United States.</p>
+
+    <div class="notice" style="display:block">
+      <b>Current status:</b> the published <code>v2.2.0</code> portable ZIP is <strong>not</strong> Authenticode-signed. Its integrity is published as SHA-256 and SHA-512 and checked by the updater. Windows may warn until a certificate is configured. This policy describes the process that will apply once signing is enabled; it is not a claim that current builds are signed.
+    </div>
+
+    <section>
+      <h2>1. Who may sign</h2>
+      <p>Only the project operator (the individual developer identified in the Terms) may request, access or use a code-signing certificate or private key. No other maintainer, contractor or automated third party receives signing credentials. Build automation may call the signing script but must read credentials from its own secret store, never from repository files.</p>
+    </section>
+
+    <section>
+      <h2>2. What gets signed</h2>
+      <p>Only official Wicked Imgui release artifacts built from reviewed source are eligible: the Windows executable and, when an installer is produced, its installer binary. Development builds, test builds and third-party binaries are not signed with the release certificate. Each signed artifact is SHA-256 hashed and timestamped with an RFC3161 timestamp so validity survives certificate expiry.</p>
+    </section>
+
+    <section>
+      <h2>3. Key custody</h2>
+      <p>Private keys are stored in the Windows certificate store or a password-protected PFX in a location outside the source tree. Keys are never committed, attached to a release, pasted into a support ticket or sent by email. A lost or suspected-compromised key is revoked with the certificate authority and replaced before the next release.</p>
+    </section>
+
+    <section>
+      <h2>4. Release procedure</h2>
+      <p>Build and validate the app, sign the binary, then package and hash the final artifact. Publish the checksums in the release manifest and release notes. Re-run the updater tests after packaging. If any file changes after signing — including repackaging — the artifact is re-signed and re-hashed; old checksums are never reused.</p>
+    </section>
+
+    <section>
+      <h2>5. Reporting a suspicious build</h2>
+      <p>If you downloaded a Wicked Imgui build that does not match the published checksum, or a file claims to be signed by this project unexpectedly, email <a href="mailto:wick777@engineer.com" data-contact="support">wick777@engineer.com</a> with the file hash and where you got it. Include "Suspicious build" in the subject. Security notices go to <a href="mailto:leakz15@programmer.net" data-contact="legal">leakz15@programmer.net</a>.</p>
+    </section>
+
+    <section>
+      <h2>6. Updates to this policy</h2>
+      <p>Changes are published on this page with a new review date. Material changes to signing practice are announced in the changelog. This draft has not yet been reviewed by counsel; see <a href="LEGAL-REVIEW.md">LEGAL-REVIEW.md</a> in the project for the review checklist.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">© <span data-year>2026</span> Wicked Imgui · <a href="privacy.html">Privacy &amp; terms</a> · <a href="faq.html">Help</a> · <a href="mailto:wick777@engineer.com" data-contact="support">wick777@engineer.com</a></div>
+  </footer>
+  <script>document.querySelectorAll('[data-year]').forEach(e => e.textContent = new Date().getFullYear());</script>
+  <script type="module" src="js/contact.js"></script>
+</body>
+</html>

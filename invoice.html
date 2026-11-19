@@ -46,46 +46,7 @@
 
   <footer class="site-footer"><div class="wrap">© <span id="year"></span> Wicked Imgui · <a href="privacy.html">Privacy &amp; terms</a></div></footer>
 
-  <script>
-    document.getElementById('year').textContent = new Date().getFullYear();
-    document.getElementById('print').addEventListener('click', () => print());
-
-    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-    const read = (k, f) => { try { return JSON.parse(localStorage.getItem(k)) ?? f; } catch { return f; } };
-    const email = sessionStorage.getItem('swi.site.session') || read('swi.site.session', null);
-    const users = read('swi.site.users', {});
-    const account = email ? users[email] : null;
-    const id = new URLSearchParams(location.search).get('id') || '';
-    const invoice = account?.invoices?.find((i) => i.id === id) || (id ? null : account?.invoices?.[0]);
-
-    const paper = document.getElementById('paper');
-    if (!invoice) {
-      paper.innerHTML = '<div class="empty"><p>That invoice could not be found in this browser.</p><p><a class="btn" href="./#billing">Back to billing</a></p></div>';
-    } else {
-      const date = new Date(invoice.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-      document.title = `${esc(invoice.id)} — Wicked Imgui`;
-      paper.innerHTML = `
-        <div class="invoice-top">
-          <a class="brand" href="./"><img src="assets/logo-mark.svg" alt="">Wicked Imgui</a>
-          <div style="text-align:right">
-            <div class="label mono">Invoice</div>
-            <div class="mono">${esc(invoice.id)}</div>
-          </div>
-        </div>
-        <h1>Thank you.</h1>
-        <p>Payment receipt for ${esc(account.name)} &lt;${esc(account.email)}&gt;.</p>
-        <div class="cards two" style="margin-top:24px">
-          <div><div class="label">Issued</div><div style="margin-top:4px">${esc(date)}</div></div>
-          <div><div class="label">Status</div><div style="margin-top:4px;color:var(--accent)">Paid</div></div>
-        </div>
-        <table class="table">
-          <thead><tr><th>Item</th><th class="r">Amount</th></tr></thead>
-          <tbody><tr><td><b>${esc(invoice.description)}</b><br><span class="hint">${esc(account.email)}</span></td><td class="r"><b>${esc(invoice.amount)}</b></td></tr></tbody>
-        </table>
-        <div class="invoice-total"><span>Total paid</span><b>${esc(invoice.amount)}</b></div>
-        <p class="hint" style="margin-top:28px">Questions about this invoice? Write to <a href="mailto:wickz77r@gmail.com" data-contact="billing">wickz77r@gmail.com</a>.</p>`;
-    }
-  </script>
+  <script type="module" src="js/invoice.js"></script>
   <script type="module" src="js/contact.js"></script>
 </body>
 </html>

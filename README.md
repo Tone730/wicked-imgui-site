@@ -116,6 +116,9 @@ The package is attached locally at `downloads\WickedImgui-Portable-2.2.0.zip` an
 - Download: <https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.0/WickedImgui-Portable-2.2.0.zip>
 - Dashboard feed: <https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.0/latest.json>
 - App feed: <https://github.com/Tone730/wicked-imgui-releases/releases/download/v2.2.0/latest.yml>
+- Rebuilt app source / build pipeline: <https://github.com/Tone730/wicked-imgui-app>
+- Dashboard source: <https://github.com/Tone730/wicked-imgui-site>
+- Live dashboard: <https://tone730.github.io/wicked-imgui-site/>
 
 Size: 168,474,152 bytes (160.7 MB). SHA-256:
 `f6682ef716f4a6c71c299c87992122fdc14c9e061675305ebeaa360871d6983d`.
@@ -142,15 +145,34 @@ Preview mode (no server). The dashboard opens directly with the Pro demo account
 - Log out → `login.html`. Logging out deliberately suppresses the auto sign-in, so the login page actually stays put.
 - Login, signup, password reset, redeem, upgrade, device sign-out, profile save, password change, sign-out-everywhere and delete-account dialogs were all exercised in-browser.
 
+### Real account server (still opt-in)
+
+`server/server.js` now implements the live half of `js/auth.js`: scrypt password hashes, HttpOnly session cookies, account/session/profile/password/delete endpoints, devices, redeem, billing intents, generic + Payhip signed webhooks, and the original signed-license API. It reads `.env` automatically (copy `.env.example`). See [DEPLOY.md](DEPLOY.md) and [PAYHIP.md](PAYHIP.md).
+
+```powershell
+cd server
+node test.js        # 52/52 checks
+node server.js      # http://127.0.0.1:8787 — also serves this dashboard
+```
+
+When the server serves the static folder it rewrites `js/config.js` in the response so `apiBase` becomes `/`. Opening the folder directly with `python -m http.server` still uses preview mode. For a separate static host, run `node tools/set-api-host.js --api https://your-api` before uploading.
+
 ## Files
 
 - `index.html`, `login.html`, `signup.html`, `privacy.html`, `faq.html`, `invoice.html`
 - `css/site.css` — original shared styles; `css/attach.css` — attachment UI
 - `js/release.js` — **edit this** to attach your build
-- `js/auth-preview.js` — preview account client; reads `RELEASE`, generates invoice links
+- `js/auth.js` / `js/auth-preview.js` — live client / browser-only demo accounts
+- `js/invoice.js` — invoice page; works in preview and with the live account API
+- `js/checkout-links.js` — generated provider URLs (empty = honest preview)
 - `js/dashboard.js` — six views, routing, download/dropzone, all interactions
 - `js/login.js`, `js/signup.js` — account page logic (targets adapted to local filenames)
+- `server/` — dependency-free account, session, billing and license server (`node server/test.js`)
+- `DEPLOY.md` — static + API deployment runbook; `render.yaml`, `Dockerfile`, `Procfile`, `.github/workflows/pages.yml`
+- `PAYHIP.md` — free checkout setup; `.env.example` — local secrets template (copy to `.env`)
+- `LEGAL-REVIEW.md`, `code-signing-policy.html` — review checklist and signing policy draft
 - `tools/attach-release.ps1` — copies your portable ZIP, hashes it and updates `release.js`
+- `tools/set-api-host.js`, `tools/set-checkout-urls.js` — build-time config generators
 - `downloads/` — put portable ZIPs here
 - `downloads.png` — REA screenshot of the Downloads page
 
@@ -195,7 +217,7 @@ Because the release is a portable ZIP, the app verifies the published SHA-256/SH
 
 ## Going live 2: payments
 
-**Lemon Squeezy is closed to new signups and shuts down 31 Mar 2027 — do not use it.** The dashboard now reads its checkout providers from `js/config.js`, so no single vendor is hard-coded. See [FREE-STACK.md](FREE-STACK.md) for the full comparison. My recommendation: **Polar Starter** as primary (no monthly fee, 5% + 50¢, handles tax) with **Payhip** or **Ko-fi** as a second option.
+**Lemon Squeezy is closed to new signups and shuts down 31 Mar 2027 — do not use it.** The dashboard now reads its checkout providers from `js/config.js`, so no single vendor is hard-coded. See [FREE-STACK.md](FREE-STACK.md) for the full comparison. Current recommendation: **Payhip Free** as primary (no monthly fee, 5% + processor, hosted subscriptions and license keys), with **Polar** or **Ko-fi** as a second option. Step-by-step setup is in [PAYHIP.md](PAYHIP.md).
 
 | Provider | Fees | Who handles VAT/sales tax, refunds, chargebacks | Best for |
 |---|---|---|---|
@@ -216,9 +238,16 @@ Because the release is a portable ZIP, the app verifies the published SHA-256/SH
 
 The current buttons are deliberate preview stubs — they show a notice instead of charging anyone. Adding a URL in `CONFIG.checkout` or `CONFIG.alternatives` makes that button open the real provider immediately.
 
+Two supported ways to go live, both honest when unconfigured:
+
+- **Static links:** `node tools\set-checkout-urls.js` regenerates `js/checkout-links.js` from `CHECKOUT_URL_MONTHLY`, `CHECKOUT_URL_YEARLY`, `CHECKOUT_PORTAL_URL`, `PAYHIP_URL`, `GUMROAD_URL`, `KOFI_URL`, `SPONSORS_URL` and `PAYPAL_URL`.
+- **Server intents:** set the same three `CHECKOUT_*` variables on the API host. `/v1/billing/checkout` and `/v1/billing/portal` return a provider URL, or `billing_unavailable` (503) with no fake checkout.
+
+`POST /v1/billing/webhook` supports two modes: generic HMAC-SHA256 (`BILLING_WEBHOOK_SECRET`, header `x-webhook-signature: sha256=<hex>`) and `BILLING_PROVIDER=payhip`, which verifies Payhip's documented `signature = sha256(PAYHIP_API_KEY)` body field and normalises its events/invoice dates. Both flip plans and store invoices from `type` + `data`. Full contract and setup in [DEPLOY.md](DEPLOY.md) and [PAYHIP.md](PAYHIP.md).
+
 ## Going live 3: licensing (free)
 
-The included `server/` is a dependency-free Node.js service that issues HMAC-signed keys and enforces the 3-device limit. `node server/test.js` passes 12/12 checks. Enable it with:
+The included `server/` is a dependency-free Node.js service that now handles accounts, sessions, billing (generic + Payhip webhooks) and HMAC-signed license keys with the 3-device limit. `node server/test.js` passes 52/52 checks. Enable it with:
 
 ```js
 // js/config.js
@@ -229,17 +258,21 @@ Then the Redeem form validates and activates keys through `js/license.js`. Other
 
 ## What I still need from you
 
-1. **Checkout URLs / provider account** — Polar, Payhip, Ko-fi or another provider from [FREE-STACK.md](FREE-STACK.md), if you want the preview payment buttons to go live.
-2. **A server** for accounts and payment webhooks if you want real sign-in and payments. For licensing, the included free `server/` already works locally. The local preview and full-access build need none of this.
-3. ~~**Public hosting** —~~ Done. The ZIP, `latest.json`, and `latest.yml` are published on [GitHub Releases](https://github.com/Tone730/wicked-imgui-releases/releases/tag/v2.2.0). To move hosts later, run `tools\set-update-host.ps1 -BaseUrl <new-url>` and upload the three printed files.
-4. ~~**Public update-feed URL** —~~ Done. `CONFIG.updates.baseUrl` and the app build both point at the public GitHub Releases feed for v2.2.0.
+1. **Checkout URLs / provider account** — Payhip (see [PAYHIP.md](PAYHIP.md)), Polar, Ko-fi or another provider from [FREE-STACK.md](FREE-STACK.md), if you want the preview payment buttons to go live.
+2. **A hosted account server** — the code exists (`server/`); it still needs a host with persistent storage and your secrets. The local preview and full-access build need none of this.
+3. **Email delivery endpoint** — without one, new accounts are marked verified and no confirmation email is faked; reset tokens are generated but not sent until `MAIL_WEBHOOK_URL` is configured.
+4. **A code-signing certificate** — see [SIGNING.md](../WickedImguiMaker/SIGNING.md) and the draft [code signing policy](code-signing-policy.html). Current builds are intentionally unsigned.
+5. **Lawyer review** — [LEGAL-REVIEW.md](LEGAL-REVIEW.md) lists every clause that needs checking before publication.
+6. ~~**Public hosting** —~~ Done. The ZIP, `latest.json`, and `latest.yml` are published on [GitHub Releases](https://github.com/Tone730/wicked-imgui-releases/releases/tag/v2.2.0). To move hosts later, run `tools\set-update-host.ps1 -BaseUrl <new-url>` and upload the three printed files.
+7. ~~**Public update-feed URL** —~~ Done. `CONFIG.updates.baseUrl` and the app build both point at the public GitHub Releases feed for v2.2.0.
 
 ## Verification
 
 - REA `capture_browser_scenario` confirmed the rendered accessibility tree for the Dashboard and Downloads pages.
 - In-app browser: all 6 pages load with zero console errors; 53/53 internal links resolve; zero failed network requests.
 - All 6 dashboard views, login, signup, reset, upgrade, redeem, device sign-out, settings forms, dialogs, menu, FAQ accordion, privacy anchors, invoice rendering and file attach were tested successfully.
-- The free license server passes 12/12 smoke tests (`cd server && node test.js`).
+- The account + license server passes 52/52 smoke tests (`cd server && node test.js`), including Payhip webhooks.
+- Preview mode is unchanged; all live behaviour is opt-in via `apiBase`, checkout links or server env vars.
 
 ## One-command publish
 

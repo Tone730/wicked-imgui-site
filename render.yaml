@@ -1,0 +1,51 @@
+# Render Blueprint for the account + license server.
+# Deploy from the dashboard root; Render uses server/package.json (no dependencies).
+# Secrets marked sync:false are entered in the Render dashboard, never in this file.
+services:
+  - type: web
+    name: wicked-imgui-account-server
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install --ignore-scripts --prefix server
+    startCommand: npm start --prefix server
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BIND_HOST
+        value: 0.0.0.0
+      - key: LICENSE_SECRET
+        generateValue: true
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: '1'
+      # 'None' is required only when the dashboard is on a different site
+      # (for example GitHub Pages) and calls this API cross-site.
+      - key: COOKIE_SAMESITE
+        value: None
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: PUBLIC_API_BASE
+        sync: false
+      - key: CHECKOUT_URL_MONTHLY
+        sync: false
+      - key: CHECKOUT_URL_YEARLY
+        sync: false
+      - key: CHECKOUT_PORTAL_URL
+        sync: false
+      # Set to 'payhip' when using Payhip. Its API key goes in PAYHIP_API_KEY;
+      # BILLING_WEBHOOK_SECRET is only for the generic HMAC webhook mode.
+      - key: BILLING_PROVIDER
+        value: generic
+      - key: PAYHIP_API_KEY
+        sync: false
+      - key: BILLING_WEBHOOK_SECRET
+        sync: false
+    # Render disks are a paid add-on. Without one, set DATA_FILE/ACCOUNTS_FILE
+    # to a path on the ephemeral filesystem and expect data loss on redeploy.
+    # disk:
+    #   name: wicked-data
+    #   mountPath: /var/data
+    #   sizeGB: 1

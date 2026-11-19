@@ -1,0 +1,7 @@
+node_modules/
+server/data/
+*.log
+.git/
+.github/
+downloads/*
+!downloads/latest.json

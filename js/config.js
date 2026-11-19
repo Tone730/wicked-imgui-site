@@ -1,4 +1,6 @@
 // Site settings — the only file you need to touch to go live.
+import { CHECKOUT_LINKS } from './checkout-links.js';
+
 export const CONFIG = {
   // Where the account server is. Empty = preview mode (accounts stored in this browser only).
   // When the Wicked Imgui account server (../server) hosts this folder it sets this to '/' by itself.
@@ -33,19 +35,19 @@ export const CONFIG = {
   // Every provider below has a $0/month entry plan. Paste your checkout URLs to make the
   // buttons live; leave them empty and the buttons stay in preview mode.
   checkout: {
-    provider: 'Polar',
-    note: 'Merchant of record · global tax handled · 5% + 50¢, no monthly fee',
-    monthly: '',   // e.g. https://polar.sh/wickedimgui/checkout/...
-    yearly: '',    // e.g. https://polar.sh/wickedimgui/checkout/...
-    portal: '',    // customer portal / manage subscription URL
+    provider: 'Payhip',
+    note: 'Free forever · 5% + your processor · cards/PayPal · subscriptions and license keys',
+    monthly: CHECKOUT_LINKS.monthly, // e.g. https://payhip.com/buy?link=MONTHLY_KEY
+    yearly: CHECKOUT_LINKS.yearly,   // e.g. https://payhip.com/buy?link=YEARLY_KEY
+    portal: CHECKOUT_LINKS.portal,   // customer portal / manage subscription URL
   },
   // Extra ways to pay or support the project. Shown on Billing; empty URLs are hidden.
   alternatives: [
-    { id: 'payhip',    name: 'Payhip',           note: 'Free plan · 5% + your processor · EU/UK VAT handled', url: '' },
-    { id: 'gumroad',   name: 'Gumroad',          note: 'No monthly fee · 10% + 50¢ · handles tax',          url: '' },
-    { id: 'kofi',      name: 'Ko-fi',            note: 'Tips 0% · shop 5% · paid straight to your account', url: '' },
-    { id: 'sponsors',  name: 'GitHub Sponsors',  note: '0% platform fee · recurring support',              url: '' },
-    { id: 'paypal',    name: 'PayPal.me',        note: 'No monthly fee · familiar to buyers',              url: '' },
+    { id: 'payhip',    name: 'Payhip',           note: 'Free plan · 5% + your processor · EU/UK VAT handled', url: CHECKOUT_LINKS.alternatives.payhip },
+    { id: 'gumroad',   name: 'Gumroad',          note: 'No monthly fee · 10% + 50¢ · handles tax',          url: CHECKOUT_LINKS.alternatives.gumroad },
+    { id: 'kofi',      name: 'Ko-fi',            note: 'Tips 0% · shop 5% · paid straight to your account', url: CHECKOUT_LINKS.alternatives.kofi },
+    { id: 'sponsors',  name: 'GitHub Sponsors',  note: '0% platform fee · recurring support',              url: CHECKOUT_LINKS.alternatives.sponsors },
+    { id: 'paypal',    name: 'PayPal.me',        note: 'No monthly fee · familiar to buyers',              url: CHECKOUT_LINKS.alternatives.paypal },
   ],
   // Server-side env vars to set when you go live (see FREE-STACK.md):
   //   CHECKOUT_URL_MONTHLY, CHECKOUT_URL_YEARLY, CHECKOUT_PORTAL_URL

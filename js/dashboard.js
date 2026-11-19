@@ -666,13 +666,25 @@ function paintBill() {
   $$('[data-up-note]').forEach((el) => { el.textContent = y ? `${CONFIG.proYearly.perMonth} a month, billed once a year.` : ''; });
 }
 
+// Payhip can pass metadata through checkout to its webhook. Adding the signed-in
+// account email makes the upgrade land on the right account even if the buyer uses
+// a different email at the processor. Never send demo emails in preview mode.
+function checkoutUrl(url) {
+  try {
+    if (isPreview || !/^https:\/\/(www\.)?payhip\.com\//i.test(url) || !acc?.user?.email) return url;
+    const u = new URL(url);
+    u.searchParams.set('metadata[wicked_email]', acc.user.email);
+    return u.toString();
+  } catch { return url; }
+}
+
 // "Manage subscription": the configured provider's customer portal (card, cancel, resume, invoices)
 async function manage() {
   const direct = CONFIG.checkout?.portal;
-  if (direct && /^https:\/\//.test(direct)) { window.open(direct, '_blank', 'noopener'); return; }
+  if (direct && /^https:\/\//.test(direct)) { window.open(checkoutUrl(direct), '_blank', 'noopener'); return; }
   try {
     const { url } = await auth.portal();
-    if (url && /^https:\/\//.test(url)) window.open(url, '_blank', 'noopener');
+    if (url && /^https:\/\//.test(url)) window.open(checkoutUrl(url), '_blank', 'noopener');
     else if (url) toast(`Preview mode — the real site opens ${CONFIG.checkout.provider} here`);
   } catch (err) { toast(errorText(err), 'error'); }
 }
@@ -680,10 +692,10 @@ async function manage() {
 async function upgrade() {
   const period = year() ? 'year' : 'month';
   const direct = CONFIG.checkout?.[period];
-  if (direct && /^https:\/\//.test(direct)) { location.href = direct; return; }
+  if (direct && /^https:\/\//.test(direct)) { location.href = checkoutUrl(direct); return; }
   try {
     const res = await auth.checkout(period);
-    if (res.url) { location.href = res.url; return; } // hosted checkout (Polar / Payhip / Gumroad / Stripe)
+    if (res.url) { location.href = checkoutUrl(res.url); return; } // hosted checkout (Polar / Payhip / Gumroad / Stripe)
     acc = await auth.account();
     renderAll();
     location.hash = 'overview';

@@ -1,0 +1,80 @@
+param(
+  [string] $SourceDist = 'C:\Users\Wick\WickedImguiMaker\dist',
+  [string] $Version,
+  [string] $Notes,
+  [string] $BaseUrl = 'http://127.0.0.1:8124/downloads/',
+  [object[]] $Changes = @()
+)
+
+$ErrorActionPreference = 'Stop'
+
+$root = Split-Path -Parent $PSScriptRoot
+$appRoot = Join-Path (Split-Path -Parent $root) 'WickedImguiMaker'
+$downloads = Join-Path $root 'downloads'
+
+if (-not $Version) {
+  $appPackage = Join-Path $appRoot 'app\package.json'
+  if (-not (Test-Path -LiteralPath $appPackage -PathType Leaf)) {
+    throw "Cannot read the app version: missing $appPackage. Pass -Version explicitly."
+  }
+  $versionMatch = [regex]::Match([IO.File]::ReadAllText($appPackage), '"version"\s*:\s*"([^"]+)"')
+  if (-not $versionMatch.Success) {
+    throw "No version field found in $appPackage. Pass -Version explicitly."
+  }
+  $Version = $versionMatch.Groups[1].Value
+}
+
+if (-not $Notes) {
+  $Notes = 'Local full-access portable build with a self-hosted update feed: updates are checksum-verified and opened for extraction. Extract the ZIP and run Wicked Imgui Maker.exe; no sign-in, license key, or installer is required.'
+}
+
+$zipName = "WickedImgui-Portable-$Version.zip"
+$zipPath = Join-Path $downloads $zipName
+$stage = Join-Path $env:TEMP ("wicked-imgui-stage-" + [guid]::NewGuid().ToString('N'))
+
+if (-not (Test-Path -LiteralPath $SourceDist -PathType Container)) {
+  throw "Built app folder not found: $SourceDist"
+}
+$exe = Join-Path $SourceDist 'Wicked ImGui Maker.exe'
+if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
+  throw "Built executable not found: $exe"
+}
+
+New-Item -ItemType Directory -Force -Path $downloads | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $stage 'Wicked Imgui Maker') | Out-Null
+
+Get-ChildItem -LiteralPath $SourceDist -Force | Copy-Item -Destination (Join-Path $stage 'Wicked Imgui Maker') -Recurse -Force
+
+$readme = @'
+Wicked Imgui Maker — local full-access portable build
+
+1. Extract this ZIP anywhere.
+2. Open the "Wicked Imgui Maker" folder.
+3. Run "Wicked ImGui Maker.exe".
+
+No installer, sign-in, license key, or network connection is required.
+The app starts as Wicked Local Pro with every feature unlocked and built-in offline AI.
+
+Generated C++/C#/Rust projects still need a local compiler and the full native ImGui/vendor
+runtime toolchain for native builds; the included runtime sources enable source export and
+offline runtime-file viewing.
+'@
+[IO.File]::WriteAllText((Join-Path $stage 'Wicked Imgui Maker\README-FIRST.txt'), $readme, [Text.UTF8Encoding]::new($false))
+
+# Write to a temporary name first so the published ZIP is never half-written
+# while attach-release.ps1 calculates its checksums.
+$zipTemp = Join-Path $downloads ("." + $zipName + "." + [guid]::NewGuid().ToString('N') + ".tmp.zip")
+try {
+  Compress-Archive -Path (Join-Path $stage 'Wicked Imgui Maker') -DestinationPath $zipTemp -CompressionLevel Optimal
+  Remove-Item -LiteralPath $stage -Recurse -Force
+  if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
+  Move-Item -LiteralPath $zipTemp -Destination $zipPath -Force
+}
+finally {
+  if (Test-Path -LiteralPath $stage -PathType Container) { Remove-Item -LiteralPath $stage -Recurse -Force }
+  if (Test-Path -LiteralPath $zipTemp -PathType Leaf) { Remove-Item -LiteralPath $zipTemp -Force }
+}
+
+$attachArgs = @{ Exe = $zipPath; Version = $Version; Notes = $Notes; BaseUrl = $BaseUrl }
+if (@($Changes).Count -gt 0) { $attachArgs.Changes = $Changes }
+& (Join-Path $PSScriptRoot 'attach-release.ps1') @attachArgs
