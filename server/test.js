@@ -15,7 +15,7 @@ const dataFile = prefix + '-licenses.json';
 const accountsFile = prefix + '-accounts.json';
 const spawned = [];
 // Explicit empties stop a local .env from sending real email during the test suite.
-const NO_MAIL = { RESEND_API_KEY: '', MAIL_WEBHOOK_URL: '', MAIL_FROM: '', SITE_URL: '' };
+const NO_MAIL = { BREVO_API_KEY: '', RESEND_API_KEY: '', MAIL_WEBHOOK_URL: '', MAIL_FROM: '', SITE_URL: '' };
 
 const child = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
   env: {
@@ -529,6 +529,55 @@ const register = (email, password, extra = {}) => post('/v1/auth/register', { na
   );
   sink.close();
 
+  // ---- Brevo free provider: sends to any address with no domain, correct payload shape
+  const brevoPort = 8797;
+  const brevoSinkPort = 8798;
+  const brevoMail = [];
+  const brevoSink = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (c) => { raw += c; });
+    req.on('end', () => {
+      try { brevoMail.push({ headers: req.headers, body: JSON.parse(raw) }); } catch { /* ignore */ }
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end('{"messageId":"test"}');
+    });
+  });
+  await new Promise((resolve) => brevoSink.listen(brevoSinkPort, '127.0.0.1', resolve));
+  const brevoFiles = [dataFile + '.brevo', accountsFile + '.brevo'];
+  const brevoChild = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
+    env: {
+      ...process.env, ...NO_MAIL,
+      PORT: String(brevoPort),
+      LICENSE_SECRET: 'test-secret-do-not-use',
+      DATA_FILE: brevoFiles[0], ACCOUNTS_FILE: brevoFiles[1],
+      BILLING_PROVIDER: 'generic',
+      BREVO_API_KEY: 'test-brevo-key',
+      BREVO_API_URL: `http://127.0.0.1:${brevoSinkPort}/v3/smtp/email`,
+      MAIL_FROM: 'Wicked Imgui <no-reply@example.org>',
+      SITE_URL: `http://127.0.0.1:${brevoPort}/`,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  spawned.push(brevoChild);
+  brevoChild.stderr.on('data', (d) => process.stderr.write(d));
+  BASE = `http://127.0.0.1:${brevoPort}`;
+  for (let i = 0; i < 60; i++) {
+    try { await fetch(BASE + '/health'); break; } catch { await new Promise((r) => setTimeout(r, 100)); }
+  }
+  const brevoHealth = await request('/health');
+  check('Brevo is detected as mail provider', brevoHealth.body?.mail === 'Brevo' && brevoHealth.body?.mailEnabled === true);
+  await register('brevo-customer@example.net', 'a-long-brevo-password');
+  for (let i = 0; i < 50 && brevoMail.length < 1; i++) await new Promise((r) => setTimeout(r, 50));
+  const bm = brevoMail[0];
+  check(
+    'Brevo delivers to any address with correct sender payload',
+    !!bm && bm.headers['api-key'] === 'test-brevo-key' && bm.body.sender?.email === 'no-reply@example.org'
+      && bm.body.to?.[0]?.email === 'brevo-customer@example.net' && bm.body.htmlContent?.includes('confirm.html')
+      && bm.body.subject?.includes('Confirm'),
+    bm ? `to=${bm.body.to?.[0]?.email} from=${bm.body.sender?.email}` : 'no Brevo request captured'
+  );
+  brevoSink.close();
+
   // ---- managed persistence: an account survives a full server restart
   const dbPort = 8794;
   const remoteRows = new Map();
@@ -602,7 +651,7 @@ const register = (email, password, extra = {}) => post('/v1/auth/register', { na
   BASE = `http://127.0.0.1:${PORT}`;
 
   for (const c of spawned) c.kill();
-  for (const f of [dataFile, accountsFile, ...files2, ...files3, ...files4, ...files5,
+  for (const f of [dataFile, accountsFile, ...files2, ...files3, ...files4, ...files5, ...brevoFiles,
     dataFile + '.remote-a', accountsFile + '.remote-a', dataFile + '.remote-b', accountsFile + '.remote-b']) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
   for (const f of [prefix + '-audit.jsonl', prefix + '-audit-noadmin.jsonl']) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
   const failed = results.filter((r) => !r.pass);

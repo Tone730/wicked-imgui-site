@@ -87,19 +87,28 @@ const COOKIE_SECURE = process.env.COOKIE_SECURE === '1' || process.env.NODE_ENV 
 const SAMESITE = process.env.COOKIE_SAMESITE || 'Lax';
 const SESSION_DAYS = Number(process.env.SESSION_DAYS || 30);
 const DEV_MAIL_TOKENS = process.env.DEV_MAIL_TOKENS === '1';
-// Email delivery. Resend is the primary provider: one API key, no automation setup.
-// MAIL_WEBHOOK_URL stays supported for anyone already routing mail through a webhook.
+// Email delivery. Providers are checked in order: Brevo, Resend, webhook.
+// Brevo's free tier (300/day) needs no domain — you verify a single sender email,
+// so it works for people without a custom domain. Set BREVO_API_KEY + MAIL_FROM.
+const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
+const BREVO_API_URL = process.env.BREVO_API_URL || 'https://api.brevo.com/v3/smtp/email';
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const RESEND_API_URL = process.env.RESEND_API_URL || 'https://api.resend.com/emails';
 const MAIL_WEBHOOK_URL = process.env.MAIL_WEBHOOK_URL || '';
 const MAIL_FROM = process.env.MAIL_FROM || 'Wicked Imgui <onboarding@resend.dev>';
 const MAIL_REPLY_TO = process.env.MAIL_REPLY_TO || '';
 const SITE_URL = ((process.env.SITE_URL || 'https://tone730.github.io/wicked-imgui-site/').replace(/\/+$/, '')) + '/';
-const mailEnabled = () => !!(RESEND_API_KEY || MAIL_WEBHOOK_URL);
+const provider = () => BREVO_API_KEY ? 'Brevo' : RESEND_API_KEY ? 'Resend' : MAIL_WEBHOOK_URL ? 'Webhook' : 'Not configured';
+const mailEnabled = () => !!(BREVO_API_KEY || RESEND_API_KEY || MAIL_WEBHOOK_URL);
+/** Split "Wicked Imgui <no-reply@example.com>" into { name, email }. */
+function parseFrom(value) {
+  const m = String(value || '').match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+  return m ? { name: m[1] || 'Wicked Imgui', email: m[2].trim() } : { name: 'Wicked Imgui', email: String(value || '').trim() };
+}
 // Small in-process counters surfaced in the admin panel so a broken mail or
 // webhook setup is visible before a customer reports it. They reset on restart.
 const deliveryState = {
-  provider: RESEND_API_KEY ? 'Resend' : MAIL_WEBHOOK_URL ? 'Webhook' : 'Not configured',
+  provider: provider(),
   sent: 0, failed: 0, billingRejected: 0, lastError: null, lastErrorAt: null,
 };
 function recordDeliveryError(message) {
@@ -538,7 +547,27 @@ async function deliverToken(db, type, email, ttl) {
   if (!mailEnabled()) return { token, link, delivery: 'not_configured' };
   const msg = mailMessage(type, link);
   let delivered = false;
-  if (RESEND_API_KEY) {
+  if (BREVO_API_KEY) {
+    try {
+      const from = parseFrom(MAIL_FROM);
+      const r = await fetch(BREVO_API_URL, {
+        method: 'POST',
+        headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: from,
+          to: [{ email, name: email.split('@')[0] }],
+          subject: msg.subject,
+          textContent: msg.text,
+          htmlContent: msg.html,
+          ...(MAIL_REPLY_TO ? { replyTo: { email: MAIL_REPLY_TO } } : {}),
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+      delivered = r.ok;
+      if (!delivered) deliveryFailure('Brevo ' + r.status + ': ' + (await r.text()).slice(0, 200));
+      else deliveryState.sent++;
+    } catch (e) { deliveryFailure('Brevo: ' + (e && e.message)); }
+  } else if (RESEND_API_KEY) {
     try {
       const r = await fetch(RESEND_API_URL, {
         method: 'POST',
