@@ -157,7 +157,18 @@ $manifest = [ordered]@{
   kind         = 'Portable build'
 }
 $json = $manifest | ConvertTo-Json -Depth 4
-[IO.File]::WriteAllText((Join-Path $downloads 'latest.json'), $json, [Text.UTF8Encoding]::new($false))
+$latestPath = Join-Path $downloads 'latest.json'
+[IO.File]::WriteAllText($latestPath, $json, [Text.UTF8Encoding]::new($false))
+
+# Feed authenticity: sign version + sha256 + bytes with Ed25519 so pinned builds
+# fail closed on a missing/tampered feed. The private key lives OUTSIDE both repos
+# (WICKED_RELEASE_KEY_FILE or ~/.config/wicked-imgui/release-signing.key). If it
+# is absent the build fails rather than emitting an unsigned feed that would
+# brick updates for signed clients. See tools/UPDATE_SIGNING.md.
+& node (Join-Path $PSScriptRoot 'sign-feed.mjs') --feed $latestPath
+if ($LASTEXITCODE -ne 0) { throw "Feed signing failed for $Version (see tools/UPDATE_SIGNING.md)" }
+& node (Join-Path $PSScriptRoot 'sign-feed.mjs') --verify --feed $latestPath
+if ($LASTEXITCODE -ne 0) { throw "Feed signature verification failed for $Version" }
 
 # electron-updater generic-provider manifest. Point the app's update URL at this folder.
 $yaml = "version: $Version`nreleaseDate: '$releasedAt'`npath: $fileName`nsha512: $sha512`nsize: $length`n"

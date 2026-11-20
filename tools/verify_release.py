@@ -133,6 +133,19 @@ def main() -> int:
           and sha512 == scalar(rel, "sha512") and sha512 == scalar(yml, "sha512"),
           sha512[:20])
 
+    # ---- feed authenticity (Ed25519 signatureV2) -----------------------------
+    signer = ROOT / "tools" / "sign-feed.mjs"
+    if signer.is_file():
+        proc = subprocess.run(
+            ["node", str(signer), "--verify", "--feed", str(latest_path)],
+            capture_output=True, text=True, timeout=60,
+        )
+        detail = (proc.stdout or proc.stderr).strip().splitlines()
+        check("feed Ed25519 signatureV2", proc.returncode == 0,
+              detail[-1] if detail else "")
+    else:
+        skip("feed Ed25519 signatureV2", "sign-feed.mjs not found")
+
     # ---- ZIP layout ---------------------------------------------------------
     with zipfile.ZipFile(zip_path) as zf:
         names = set(zf.namelist())
