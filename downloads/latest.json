@@ -1,17 +1,17 @@
 {
-    "version": "2.9.1",
-    "date": "2026-11-19",
-    "releaseDate": "2026-11-19T23:39:52.1855014Z",
+    "version": "2.9.2",
+    "date": "2026-11-20",
+    "releaseDate": "2026-11-20T09:07:24.6219472Z",
     "channel": "stable",
-    "bytes": 168592425,
+    "bytes": 168592816,
     "size": "160.8 MB",
-    "sha256": "12a39281406599c89199ab9de37deaf84b4758177b73327de15836eeefab2a9c",
-    "sha512": "McwCFyhs1jKwMtcxOhfoDLbL4WFlw20+jTyegYfU/vU1dCEcLovMd5nBAcUOQpjCKhJOYZqWiN484a/S65coKg==",
-    "file": "WickedImgui-Portable-2.9.1.zip",
-    "url": "https://github.com/Tone730/wicked-imgui-releases/releases/latest/download/WickedImgui-Portable-2.9.1.zip",
+    "sha256": "870d9f01b40386fba6694e0497ad168ab8892a47b7e33ebe0362f6b0d3a0e7a1",
+    "sha512": "rZhc52uWlvHjD6xGipX+hn38SdS6e9H2j4Fy5+Zmt0FY42kT0umHc1YFN36h2HRngiDd/AahuepbDw1LZZXQKg==",
+    "file": "WickedImgui-Portable-2.9.2.zip",
+    "url": "https://github.com/Tone730/wicked-imgui-releases/releases/latest/download/WickedImgui-Portable-2.9.2.zip",
     "feed": "https://github.com/Tone730/wicked-imgui-releases/releases/latest/download/latest.json",
     "electronFeed": "https://github.com/Tone730/wicked-imgui-releases/releases/latest/download/latest.yml",
     "notes": "Added all 8 public online design kits as fully editable UI projects: ImJson theme demo, VISION overlay menu, dear-imgui-styles collection, ImguiCandy themes, UntitledImGuiTheme editor, Clean ImGui (Evicted), Lumin Free ImGui menu and the hello_imgui 17-theme library. 40 style presets, 20 premades and an expanded offline control lexicon with exact tabs, controls, slider ranges, palettes and font roles transcribed from each source. Fully local/offline: no sign-in, key or backend; all upstream sources analysed statically, no extracted code or binaries executed.",
     "kind": "Portable build",
-    "signatureV2": "ezFnTlJ1pLL2prP9R0v7g9xr-fdL7Sls4yIWlH4o5xzP0xDIF79mk1_mOXBorSeJ-4SrABXO0U95Jl8vmK6PAQ"
+    "signatureV2": "DhD2cuts_Gf-g26o1SBR0wH_TLbjj8suAwNWrkVc6BB6XVToH6_UKW-zOnXz9pB-06Ms8H0nYuxxmVq6FNkDDQ"
 }

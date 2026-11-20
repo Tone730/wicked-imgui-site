@@ -6,7 +6,7 @@ export const CONFIG = {
   // When the Wicked Imgui account server (../server) hosts this folder it sets this to '/' by itself.
   apiBase: '',
   // Release metadata now lives in js/release.js — the Downloads page reads from there.
-  version: '2.9.1',
+  version: '2.9.2',
   releaseDate: '2026-11-19',
   // ---------------------------------------------------------------- updates
   // Self-hosted generic update feed (free). tools\attach-release.ps1 writes both
