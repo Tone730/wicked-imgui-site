@@ -105,6 +105,7 @@ const deliveryState = {
 function recordDeliveryError(message) {
   deliveryState.lastError = String(message).slice(0, 300);
   deliveryState.lastErrorAt = new Date().toISOString();
+  console.warn('Mail/webhook delivery error:', deliveryState.lastError);
 }
 function deliveryFailure(message) {
   deliveryState.failed++;
@@ -1423,7 +1424,10 @@ const server = http.createServer(async (req, res) => {
     const p = url.pathname;
 
     if (req.method === 'GET' && p === '/health') {
-      return reply(res, 200, { ok: true, service: 'wicked-imgui-server', version: 2, devSecret: isDev, accounts: true });
+      return reply(res, 200, {
+        ok: true, service: 'wicked-imgui-server', version: 2, devSecret: isDev, accounts: true,
+        mail: deliveryState.provider, mailEnabled: mailEnabled(),
+      });
     }
     // The payment webhook authenticates with its own HMAC signature, so it has no browser
     // Origin to check. Everything else rejects state-changing cross-site requests.
@@ -1451,5 +1455,8 @@ const server = http.createServer(async (req, res) => {
 
 (async () => {
   if (remote) await remoteLoad();
-  server.listen(PORT, HOST, () => console.log(`Wicked Imgui account + license server → http://${HOST}:${PORT}`));
+  server.listen(PORT, HOST, () => {
+    console.log(`Wicked Imgui account + license server → http://${HOST}:${PORT}`);
+    console.log(`Mail provider: ${deliveryState.provider} (enabled=${mailEnabled()}, from=${MAIL_FROM || 'default'})`);
+  });
 })().catch((err) => { console.error('Server startup failed:', err.message); process.exit(1); });
