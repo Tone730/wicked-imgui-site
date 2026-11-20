@@ -5,6 +5,15 @@ Every `- [Tag] text` bullet becomes one `changes` entry in `js/release.js`.
 Keep the bullets on a single line. When a section for the version being published
 does not exist, the pipeline keeps the existing `changes` array unchanged.
 
+## [2.9.2] - 2026-11-20
+
+- [Quality] Folded all 118 kit-board visual baselines into the main regression gate (now 745 checks) and added a single `npm test` command; the PNG harness stays standalone for `--update` baseline regeneration.
+- [AI] Documented the offline AI intent contract in `AI_CONTRACT.md` and added `test-ai-contract.js` (34 structural checks) so an edit that drops a batch intent, offline provider or kit hook fails the gate before shipping. Minified artifacts were not rewritten.
+- [Updates] The self-hosted update feed is now Ed25519-signed in a new `signatureV2` field. Pinned builds fail closed on a missing or tampered signature; already-shipped builds keep updating. Private key stays outside both repos; setup and rotation are documented in `tools/UPDATE_SIGNING.md`.
+- [Verification] Added `verify-release.mjs` as the canonical one-command release check; the gate now also validates the feed signature (14 checks, plus remote asset digest).
+- [Doctor] Warns when a widget extends outside its parent panel, with a scrollable-parent exemption; shipped kits use no parent links so there are no false positives.
+- [Quality] Added an optional real-browser Playwright screenshot layer that skips cleanly when no browser is installed, so Chromium is never a build dependency. Static validation, updater tests, 67 server tests and 6 export compile checks all pass.
+
 ## [2.9.1] - 2026-11-19
 
 - [Licences] Bundled verbatim upstream MIT licence texts for all 13 permissively licensed kits in `licenses/`, generated `THIRD-PARTY-NOTICES.txt`, and added a per-kit Full licence text viewer in the Credits panel. The 9 archive samples with no upstream licence are explicitly labelled as notices, with no licence asserted on their behalf.
