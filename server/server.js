@@ -96,6 +96,20 @@ const MAIL_FROM = process.env.MAIL_FROM || 'Wicked Imgui <onboarding@resend.dev>
 const MAIL_REPLY_TO = process.env.MAIL_REPLY_TO || '';
 const SITE_URL = ((process.env.SITE_URL || 'https://tone730.github.io/wicked-imgui-site/').replace(/\/+$/, '')) + '/';
 const mailEnabled = () => !!(RESEND_API_KEY || MAIL_WEBHOOK_URL);
+// Small in-process counters surfaced in the admin panel so a broken mail or
+// webhook setup is visible before a customer reports it. They reset on restart.
+const deliveryState = {
+  provider: RESEND_API_KEY ? 'Resend' : MAIL_WEBHOOK_URL ? 'Webhook' : 'Not configured',
+  sent: 0, failed: 0, billingRejected: 0, lastError: null, lastErrorAt: null,
+};
+function recordDeliveryError(message) {
+  deliveryState.lastError = String(message).slice(0, 300);
+  deliveryState.lastErrorAt = new Date().toISOString();
+}
+function deliveryFailure(message) {
+  deliveryState.failed++;
+  recordDeliveryError(message);
+}
 const BILLING_PROVIDER = (process.env.BILLING_PROVIDER || 'generic').toLowerCase();
 const BILLING_WEBHOOK_SECRET = process.env.BILLING_WEBHOOK_SECRET || '';
 const PAYHIP_API_KEY = process.env.PAYHIP_API_KEY || '';
@@ -539,8 +553,9 @@ async function deliverToken(db, type, email, ttl) {
         signal: AbortSignal.timeout(8000),
       });
       delivered = r.ok;
-      if (!delivered) console.error('Mail delivery failed:', r.status, (await r.text()).slice(0, 300));
-    } catch (e) { console.error('Mail delivery error:', e && e.message); }
+      if (!delivered) deliveryFailure('Resend ' + r.status + ': ' + (await r.text()).slice(0, 200));
+      else deliveryState.sent++;
+    } catch (e) { deliveryFailure('Resend: ' + (e && e.message)); }
   } else if (MAIL_WEBHOOK_URL) {
     try {
       const r = await fetch(MAIL_WEBHOOK_URL, {
@@ -550,8 +565,9 @@ async function deliverToken(db, type, email, ttl) {
         signal: AbortSignal.timeout(5000),
       });
       delivered = r.ok;
-      if (!delivered) console.error('Mail webhook failed:', r.status);
-    } catch (e) { console.error('Mail webhook error:', e && e.message); }
+      if (!delivered) deliveryFailure('Webhook ' + r.status + ': ' + (await r.text()).slice(0, 200));
+      else deliveryState.sent++;
+    } catch (e) { deliveryFailure('Webhook: ' + (e && e.message)); }
   }
   return { token, link, delivery: delivered ? 'sent' : 'failed' };
 }
@@ -883,6 +899,7 @@ async function adminApi(req, p, body) {
       accessCredits: users.reduce((n, u) => n + (u.credits.access || 0), 0),
       aiCredits: users.reduce((n, u) => n + (u.credits.ai || 0), 0),
       pendingGrants: Object.values(db.grants).filter((g) => !g.claimedAt).length,
+      delivery: { ...deliveryState, enabled: mailEnabled() },
       events: readAudit({ limit: 6 }),
     };
   }
@@ -972,6 +989,16 @@ async function adminApi(req, p, body) {
     writeAccounts(db);
     audit('admin.user_password', { target: email }, req, actor);
     return { ok: true };
+  }
+
+  if (req.method === 'POST' && p === '/admin/api/user/sessions') {
+    const email = targetOf(body);
+    findUser(email);
+    let removed = 0;
+    for (const t of Object.keys(db.sessions)) if (db.sessions[t].email === email) { delete db.sessions[t]; removed++; }
+    writeAccounts(db);
+    audit('admin.user_sessions', { target: email, removed }, req, actor);
+    return { ok: true, removed };
   }
 
   if (req.method === 'POST' && p === '/admin/api/user/credits') {
@@ -1187,7 +1214,8 @@ async function api(req, res, p, body, raw) {
   if (p === '/v1/billing/webhook') {
     let event;
     try { event = JSON.parse(raw); } catch { throw fail('invalid_request', 400, 'Webhook body is not JSON.'); }
-    verifyWebhook(req, raw, event);
+    try { verifyWebhook(req, raw, event); }
+    catch (e) { deliveryState.billingRejected++; recordDeliveryError('Billing webhook: ' + (e && e.message)); throw e; }
     return applyBillingEvent(normalizeBillingEvent(event), billingEventKey(event));
   }
 

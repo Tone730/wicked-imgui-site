@@ -22,6 +22,18 @@ async function api(method, path, body) {
 function fd(form) { return Object.fromEntries(new FormData(form)); }
 function num(v, fallback = 0) { const n = Number(v); return Number.isFinite(n) ? n : fallback; }
 function chip(text, kind = '') { return `<span class="chip ${kind}">${esc(text)}</span>`; }
+function csvCell(value) {
+  const s = String(value ?? '');
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function downloadCsv(name, rows) {
+  const blob = new Blob([rows.map((r) => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
 
 function showGate(message) {
   $('#admin-shell').hidden = true;
@@ -82,6 +94,20 @@ async function loadTab() {
 function tile(label, value, note = '') {
   return `<div class="card"><div class="label">${esc(label)}</div><div class="stat-value">${esc(value)}</div>${note ? `<span class="delta">${esc(note)}</span>` : ''}</div>`;
 }
+function deliveryCard(dl) {
+  if (!dl) return '';
+  const cfg = dl.enabled;
+  const state = !cfg ? 'warn' : (dl.failed || dl.billingRejected) ? 'warn' : 'pro';
+  const status = !cfg ? 'Not configured' : (dl.failed || dl.billingRejected) ? 'Needs attention' : 'Healthy';
+  return `<div class="card" style="margin-top:18px"><div class="card-head">${icon('bell', 16)}<h3>Email &amp; webhook delivery</h3><span class="grow"></span>${chip(status, state)}</div>
+    <div class="small" style="line-height:1.8">
+      Provider: <b>${esc(dl.provider || 'Not configured')}</b><br>
+      Sent: <b>${esc(dl.sent || 0)}</b> · Failed: <b>${esc(dl.failed || 0)}</b> · Rejected webhooks: <b>${esc(dl.billingRejected || 0)}</b>
+      ${dl.lastError ? `<br>Last error${dl.lastErrorAt ? ' (' + esc(fmtDate(dl.lastErrorAt)) + ')' : ''}: ${esc(dl.lastError)}` : ''}
+      ${!cfg ? '<br>Set RESEND_API_KEY (or MAIL_WEBHOOK_URL) on the server to deliver account email.' : ''}
+    </div>
+  </div>`;
+}
 function renderOverview(d) {
   $('#tab-overview').innerHTML = `
     <div class="panel-head"><h2>Overview</h2><span class="grow"></span><span class="small">Live counts from the account server</span></div>
@@ -93,6 +119,7 @@ function renderOverview(d) {
       ${tile('Access credits', d.accessCredits, `${CONFIG.credits?.accessDays || 30} days each`)}
       ${tile('AI credits', d.aiCredits, 'Unspent balance')}
     </div>
+    ${deliveryCard(d.delivery)}
     <div class="card" style="margin-top:18px"><div class="card-head">${icon('chart', 16)}<h3>Recent activity</h3></div>
       ${d.events?.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>When</th><th>Action</th><th>Actor</th><th>Target</th><th>Result</th></tr></thead><tbody>${d.events.map((e) => `<tr><td class="small">${esc(fmtDate(e.at))}</td><td><span class="ev ${String(e.action).startsWith('admin') ? 'ev-admin' : ''}">${esc(e.action)}</span></td><td class="small">${esc(e.actor)}</td><td class="small">${esc(e.target || '—')}</td><td class="small">${esc(e.result)}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">No activity recorded yet.</div>`}
     </div>`;
@@ -286,7 +313,7 @@ function renderAnnouncement(a) {
 function renderAudit(list) {
   audit = list || [];
   $('#tab-audit').innerHTML = `
-    <div class="panel-head"><h2>Activity log</h2><span class="grow"></span><span class="small">Newest first. Passwords, tokens and full keys are never written.</span></div>
+    <div class="panel-head"><h2>Activity log</h2><span class="grow"></span><span class="small">Newest first. Passwords, tokens and full keys are never written.</span><button class="btn sm" type="button" id="audit-export">Export CSV</button></div>
     <div class="card" style="margin-bottom:18px"><div class="row">
       <div class="search">${icon('search')}<input class="input" id="audit-q" placeholder="Search action, actor, target, detail…" value="${esc($('#audit-q')?.value || '')}"></div>
       <input class="input" id="audit-action" style="max-width:170px" placeholder="Action contains" value="${esc($('#audit-action')?.value || '')}">
@@ -306,6 +333,10 @@ function renderAudit(list) {
     </table></div></div>`;
   $('#audit-load').addEventListener('click', () => busy($('#audit-load'), loadTab));
   $('#audit-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#audit-load').click(); });
+  $('#audit-export').addEventListener('click', () => downloadCsv('wicked-audit-' + new Date().toISOString().slice(0, 10) + '.csv', [
+    ['at', 'action', 'actor', 'target', 'result', 'ip', 'detail'],
+    ...audit.map((e) => [e.at, e.action, e.actor, e.target, e.result, e.ip, JSON.stringify(e.detail || {})]),
+  ]));
 }
 
 function modal(html) {
@@ -367,7 +398,7 @@ function openUserModal(email) {
       <button class="btn sm danger" type="submit">Reset &amp; sign out everywhere</button>
     </form>
     <hr>
-    <div class="row"><button class="btn sm ${u.disabled ? '' : 'danger'}" type="button" id="user-disable">${u.disabled ? 'Enable account' : 'Disable account'}</button></div>`);
+    <div class="row"><button class="btn sm ${u.disabled ? '' : 'danger'}" type="button" id="user-disable">${u.disabled ? 'Enable account' : 'Disable account'}</button><button class="btn sm" type="button" id="user-sessions">Sign out everywhere</button></div>`);
 
   $$('form[data-action]', m.back).forEach((form) => form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -404,6 +435,16 @@ function openUserModal(email) {
       action: () => api('POST', '/admin/api/user/disable', { email, disabled: !u.disabled }),
     });
     if (ok) { m.close(); toast('Account updated'); loadTab(); }
+  });
+  $('#user-sessions', m.back).addEventListener('click', async () => {
+    const ok = await confirmDialog({
+      title: 'Sign this account out everywhere?',
+      danger: true,
+      confirm: 'Sign out',
+      text: esc(u.email) + ' will need to log in again on every device.',
+      action: () => api('POST', '/admin/api/user/sessions', { email }),
+    });
+    if (ok) { toast('All sessions revoked'); loadTab(); }
   });
 }
 

@@ -1,0 +1,17 @@
+name: Keep account API warm
+
+# Render's free tier sleeps after inactivity; the first real request then takes
+# ~50s. A scheduled health check keeps the API responsive during business hours
+# without changing any product behaviour. Remove this file if you move to a paid
+# always-on plan.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping account server
+        run: curl --fail --silent --show-error --max-time 30 https://wicked-imgui-account-server.onrender.com/health

@@ -259,6 +259,10 @@ const register = (email, password, extra = {}) => post('/v1/auth/register', { na
   const auditRows = await request('/admin/api/audit?limit=100&action=credits', { cookie: adminCookie });
   check('admin can change roles, plans and read logs', roleChange.body.role === 'admin' && secondRow?.role === 'admin' && planChange.body.plan === 'pro' && planChange.body.proUntil && auditRows.body.some((e) => String(e.action).startsWith('credits.')));
 
+  const sessionsRevoked = await post('/admin/api/user/sessions', { email: 'second@example.com' }, undefined, adminCookie);
+  const staleSecond = await request('/v1/account', { cookie: second.cookie });
+  check('admin can revoke every session for a user', sessionsRevoked.status === 200 && sessionsRevoked.body.removed >= 1 && staleSecond.status === 401, `removed=${sessionsRevoked.body.removed}`);
+
   const device = redeemed.body.devices[0];
   const revoked = await request('/v1/devices/' + encodeURIComponent(device.id), { method: 'DELETE', cookie });
   check('revoke device', revoked.status === 200 && !revoked.body.devices.some((d) => d.id === device.id));
@@ -468,6 +472,7 @@ const register = (email, password, extra = {}) => post('/v1/auth/register', { na
       ...NO_MAIL,
       PORT: String(mailPort),
       LICENSE_SECRET: 'test-secret-do-not-use',
+      ADMIN_TOKEN: 'test-admin',
       DATA_FILE: files5[0],
       ACCOUNTS_FILE: files5[1],
       BILLING_PROVIDER: 'generic',
@@ -514,6 +519,14 @@ const register = (email, password, extra = {}) => post('/v1/auth/register', { na
   check('emailed reset token sets a new password', confirmReset.status === 200 && mailRelogin.status === 200);
   const resetReused = await post('/v1/auth/password-reset/confirm', { token: resetToken, password: 'yet-another-password' });
   check('reset token cannot be reused', resetReused.status === 400 && resetReused.body.error === 'invalid_token');
+
+  const deliveryOverview = await request('/admin/api/overview', { token: 'test-admin' });
+  const dl = deliveryOverview.body?.delivery;
+  check(
+    'admin overview reports live mail delivery counters',
+    deliveryOverview.status === 200 && dl?.enabled === true && dl?.provider === 'Webhook' && dl?.sent >= 2 && dl?.failed === 0,
+    `status=${deliveryOverview.status} provider=${dl?.provider} sent=${dl?.sent} failed=${dl?.failed}`
+  );
   sink.close();
 
   // ---- managed persistence: an account survives a full server restart
