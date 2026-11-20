@@ -72,6 +72,7 @@ resetForm.addEventListener('submit', (e) => {
     try {
       await auth.requestReset({ email: value });
       $('#reset-to').textContent = value;
+      if (isPreview) $('#reset-done .grow').insertAdjacentHTML('beforeend', ' Preview mode cannot send email — demo accounts use <b>test / test</b> or <b>free / free</b>.');
       resetForm.hidden = true;
       $('#reset-done').hidden = false;
     } catch (err) { formError(resetForm, errorText(err)); }

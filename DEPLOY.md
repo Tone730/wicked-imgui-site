@@ -49,6 +49,21 @@ Use this when the dashboard is on GitHub Pages / Cloudflare Pages and the API is
 | `CHECKOUT_URL_MONTHLY`, `CHECKOUT_URL_YEARLY`, `CHECKOUT_PORTAL_URL` | Payhip/Polar links | Enable server-side checkout/portal intents |
 | `BILLING_PROVIDER` | `payhip` or `generic` | Chooses webhook verification and payload normalisation |
 | `PAYHIP_API_KEY` | Payhip API key | Verifies Payhip webhook signatures; keep it secret |
+| `RESEND_API_KEY` | Resend API key | Sends reset and verification emails; keep it secret |
+| `MAIL_FROM` | verified sender, e.g. `Wicked Imgui <no-reply@yourdomain.com>` | From address on your verified domain |
+| `MAIL_REPLY_TO` | `wick777@engineer.com` | Where replies go |
+| `SITE_URL` | `https://tone730.github.io/wicked-imgui-site/` | Base URL for links in emails |
+| `MAIL_WEBHOOK_URL` | optional HTTPS endpoint | Alternative to Resend; receives `{to,type,token,link,subject,text,html}` |
+| `DEV_MAIL_TOKENS` | `1` only locally | Prints confirmation links to the server console |
+
+### Email setup (Resend, free tier)
+
+1. Create a Resend account, verify the domain you want to send from, and create an API key with sending permission.
+2. Set `RESEND_API_KEY`, `MAIL_FROM` (an address on the verified domain), `MAIL_REPLY_TO` and `SITE_URL` on the API host. Restart the service.
+3. Register a test account: a verification email should arrive, and `confirm.html?type=verify&token=…` should mark it confirmed. Use “Forgot password?” to test the reset link.
+4. Until a provider is configured, `emailVerified` is set to `true` automatically, no mail is claimed to have been sent, and the resend button reports that delivery is not configured. Do not publish that state as final — customers need resets.
+
+A generic `MAIL_WEBHOOK_URL` is supported instead of Resend for people who already use Make/n8n/a relay. If both are empty, no mail is sent. Keep `RESEND_API_KEY` and webhook URLs out of the repo; set them as host secrets.
 
 If both `ADMIN_EMAILS` and `ADMIN_TOKEN` are empty, all `/admin/api/*` routes return `503 admin_unconfigured`. The standalone `admin.html` panel signs in with an admin account session by default; its token field is runtime-only and saved to browser `sessionStorage`, never to a source file.
 

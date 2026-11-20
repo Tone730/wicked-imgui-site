@@ -2,6 +2,7 @@
 // Covers the license service and the account/session/billing API.
 'use strict';
 const { spawn } = require('node:child_process');
+const http = require('node:http');
 const crypto = require('node:crypto');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -13,10 +14,13 @@ const prefix = path.join(os.tmpdir(), `wicki-server-test-${process.pid}`);
 const dataFile = prefix + '-licenses.json';
 const accountsFile = prefix + '-accounts.json';
 const spawned = [];
+// Explicit empties stop a local .env from sending real email during the test suite.
+const NO_MAIL = { RESEND_API_KEY: '', MAIL_WEBHOOK_URL: '', MAIL_FROM: '', SITE_URL: '' };
 
 const child = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
   env: {
     ...process.env,
+    ...NO_MAIL,
     PORT: String(PORT),
     LICENSE_SECRET: 'test-secret-do-not-use',
     ADMIN_TOKEN: 'test-admin',
@@ -290,6 +294,7 @@ const register = (email, password, extra = {}) => post('/v1/auth/register', { na
   const child4 = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
     env: {
       ...process.env,
+      ...NO_MAIL,
       PORT: String(port4),
       LICENSE_SECRET: 'test-secret-do-not-use',
       ADMIN_TOKEN: '',
@@ -317,6 +322,7 @@ const register = (email, password, extra = {}) => post('/v1/auth/register', { na
   const child2 = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
     env: {
       ...process.env,
+      ...NO_MAIL,
       PORT: String(port2),
       LICENSE_SECRET: 'test-secret-do-not-use',
       DATA_FILE: files2[0],
@@ -353,6 +359,18 @@ const register = (email, password, extra = {}) => post('/v1/auth/register', { na
   const afterPay = await request('/v1/account', { cookie: buyer.cookie });
   check('webhook upgrades account and stores invoice', afterPay.body.user?.plan === 'pro' && afterPay.body.invoices?.[0]?.id === 'INV-TEST-1' && afterPay.body.invoices[0].amount === '$10.00');
 
+  const replay = await fetch(BASE + '/v1/billing/webhook', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-webhook-signature': 'sha256=' + signature },
+    body: event,
+  }).then(async (r) => ({ status: r.status, body: await r.json() }));
+  const afterReplay = await request('/v1/account', { cookie: buyer.cookie });
+  check(
+    'webhook replay is idempotent',
+    replay.status === 200 && replay.body.duplicate === true && afterReplay.body.invoices?.length === 1 && afterReplay.body.subscription?.renewsAt === afterPay.body.subscription?.renewsAt,
+    `duplicate=${replay.body.duplicate} invoices=${afterReplay.body.invoices?.length}`
+  );
+
   const badSig = await fetch(BASE + '/v1/billing/webhook', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-webhook-signature': 'sha256=deadbeef' },
@@ -369,6 +387,7 @@ const register = (email, password, extra = {}) => post('/v1/auth/register', { na
   const child3 = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
     env: {
       ...process.env,
+      ...NO_MAIL,
       PORT: String(port3),
       LICENSE_SECRET: 'test-secret-do-not-use',
       DATA_FILE: files3[0],
@@ -426,8 +445,80 @@ const register = (email, password, extra = {}) => post('/v1/auth/register', { na
   const phRefunded = await request('/v1/account', { cookie: phBuyer.cookie });
   check('Payhip refund returns account to Free', refunded.status === 200 && phRefunded.body.user?.plan === 'free' && phRefunded.body.subscription === null);
 
+  // ---- email delivery: webhook transport, usable links, no fake "sent" claims
+  const mailPort = 8792;
+  const sinkPort = 8793;
+  const capturedMail = [];
+  const sink = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (chunk) => { raw += chunk; });
+    req.on('end', () => {
+      try { capturedMail.push(JSON.parse(raw)); } catch { /* ignore malformed */ }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+  });
+  await new Promise((resolve) => sink.listen(sinkPort, '127.0.0.1', resolve));
+  const files5 = [dataFile + '.mail', accountsFile + '.mail'];
+  const mailBase = `http://127.0.0.1:${mailPort}`;
+  const mailSite = mailBase + '/';
+  const child5 = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
+    env: {
+      ...process.env,
+      ...NO_MAIL,
+      PORT: String(mailPort),
+      LICENSE_SECRET: 'test-secret-do-not-use',
+      DATA_FILE: files5[0],
+      ACCOUNTS_FILE: files5[1],
+      BILLING_PROVIDER: 'generic',
+      MAIL_WEBHOOK_URL: `http://127.0.0.1:${sinkPort}/mail`,
+      SITE_URL: mailSite,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  spawned.push(child5);
+  child5.stderr.on('data', (d) => process.stderr.write(d));
+  BASE = mailBase;
+  for (let i = 0; i < 60; i++) {
+    try { await fetch(BASE + '/health'); break; } catch { await new Promise((r) => setTimeout(r, 100)); }
+  }
+  const waitForMail = async (n) => {
+    for (let i = 0; i < 50 && capturedMail.length < n; i++) await new Promise((r) => setTimeout(r, 50));
+  };
+
+  const mailUser = await register('mailer@example.com', 'a-very-long-password');
+  check('mail configured marks new email unverified', mailUser.body.user?.emailVerified === false, `status=${mailUser.status} verified=${mailUser.body.user?.emailVerified}`);
+  await waitForMail(1);
+  const verifyMail = capturedMail.find((m) => m.type === 'verify');
+  check(
+    'signup delivers verification link',
+    !!verifyMail && verifyMail.link.startsWith(mailSite + 'confirm.html?type=verify&token=') && verifyMail.text.includes(verifyMail.link) && verifyMail.subject.includes('Confirm'),
+    verifyMail?.link || 'no mail captured'
+  );
+  const verifyToken = new URL(verifyMail.link).searchParams.get('token');
+  const verified = await post('/v1/auth/verify-email', { token: verifyToken });
+  const mailSession = await request('/v1/auth/session', { cookie: mailUser.cookie });
+  check('emailed verification token works', verified.status === 200 && mailSession.body.user?.emailVerified === true);
+
+  await post('/v1/auth/password-reset', { email: 'mailer@example.com' });
+  await waitForMail(2);
+  const resetMail = capturedMail.find((m) => m.type === 'reset');
+  check(
+    'reset email delivers a usable link',
+    !!resetMail && resetMail.link.startsWith(mailSite + 'confirm.html?type=reset&token=') && resetMail.text.includes(resetMail.link) && resetMail.html.includes('type=reset&amp;token=') && resetMail.subject.includes('Reset'),
+    resetMail?.link || 'no mail captured'
+  );
+  const resetToken = new URL(resetMail.link).searchParams.get('token');
+  const confirmReset = await post('/v1/auth/password-reset/confirm', { token: resetToken, password: 'a-brand-new-password' });
+  const mailRelogin = await post('/v1/auth/login', { email: 'mailer@example.com', password: 'a-brand-new-password' });
+  check('emailed reset token sets a new password', confirmReset.status === 200 && mailRelogin.status === 200);
+  const resetReused = await post('/v1/auth/password-reset/confirm', { token: resetToken, password: 'yet-another-password' });
+  check('reset token cannot be reused', resetReused.status === 400 && resetReused.body.error === 'invalid_token');
+  sink.close();
+  BASE = `http://127.0.0.1:${PORT}`;
+
   for (const c of spawned) c.kill();
-  for (const f of [dataFile, accountsFile, ...files2, ...files3, ...files4]) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
+  for (const f of [dataFile, accountsFile, ...files2, ...files3, ...files4, ...files5]) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
   for (const f of [prefix + '-audit.jsonl', prefix + '-audit-noadmin.jsonl']) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
   const failed = results.filter((r) => !r.pass);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);

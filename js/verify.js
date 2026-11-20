@@ -19,8 +19,10 @@ export function verifyStrip(account) {
 
 export async function resend() {
   try {
-    await auth.resendVerification();
-    toast('Link sent — check your inbox');
+    const out = await auth.resendVerification();
+    if (out?.delivery === 'failed') toast('The email could not be sent. Try again in a moment.', 'error');
+    else if (out?.delivery === 'not_configured') toast('Email delivery is not configured on this server yet.', 'error');
+    else toast('Link sent — check your inbox');
   } catch (err) { toast(errorText(err), 'error'); }
 }
 

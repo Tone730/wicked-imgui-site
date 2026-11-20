@@ -43,6 +43,22 @@ services:
         sync: false
       - key: BILLING_WEBHOOK_SECRET
         sync: false
+      # Email delivery. Create a Resend API key and verify a sending domain, then
+      # set RESEND_API_KEY and MAIL_FROM in the Render dashboard (never in git).
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MAIL_REPLY_TO
+        value: wick777@engineer.com
+      - key: SITE_URL
+        value: https://tone730.github.io/wicked-imgui-site/
+      # Optional alternative to Resend: an HTTPS endpoint that accepts
+      # {to,type,token,link,subject,text,html}. Leave empty to use Resend.
+      - key: MAIL_WEBHOOK_URL
+        sync: false
+      - key: DEV_MAIL_TOKENS
+        value: '0'
     # Render disks are a paid add-on. Without one, set DATA_FILE/ACCOUNTS_FILE
     # to a path on the ephemeral filesystem and expect data loss on redeploy.
     # disk:

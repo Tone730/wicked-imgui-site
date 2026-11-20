@@ -35,6 +35,10 @@ jobs:
       - name: Check CommonJS tooling syntax
         run: node --check server/server.js && node --check tools/set-api-host.js && node --check tools/set-checkout-urls.js
 
+      # Catch broken account, billing, credit, admin and email flows before deploy.
+      - name: Run server tests
+        run: node server/test.js
+
       - name: Stage static site
         run: |
           mkdir -p _site

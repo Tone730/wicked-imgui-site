@@ -87,7 +87,15 @@ const COOKIE_SECURE = process.env.COOKIE_SECURE === '1' || process.env.NODE_ENV 
 const SAMESITE = process.env.COOKIE_SAMESITE || 'Lax';
 const SESSION_DAYS = Number(process.env.SESSION_DAYS || 30);
 const DEV_MAIL_TOKENS = process.env.DEV_MAIL_TOKENS === '1';
+// Email delivery. Resend is the primary provider: one API key, no automation setup.
+// MAIL_WEBHOOK_URL stays supported for anyone already routing mail through a webhook.
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const RESEND_API_URL = process.env.RESEND_API_URL || 'https://api.resend.com/emails';
 const MAIL_WEBHOOK_URL = process.env.MAIL_WEBHOOK_URL || '';
+const MAIL_FROM = process.env.MAIL_FROM || 'Wicked Imgui <onboarding@resend.dev>';
+const MAIL_REPLY_TO = process.env.MAIL_REPLY_TO || '';
+const SITE_URL = ((process.env.SITE_URL || 'https://tone730.github.io/wicked-imgui-site/').replace(/\/+$/, '')) + '/';
+const mailEnabled = () => !!(RESEND_API_KEY || MAIL_WEBHOOK_URL);
 const BILLING_PROVIDER = (process.env.BILLING_PROVIDER || 'generic').toLowerCase();
 const BILLING_WEBHOOK_SECRET = process.env.BILLING_WEBHOOK_SECRET || '';
 const PAYHIP_API_KEY = process.env.PAYHIP_API_KEY || '';
@@ -127,6 +135,7 @@ const readAccounts = () => {
   const db = readFile(ACCOUNTS_FILE, {});
   db.users ||= {}; db.sessions ||= {}; db.tokens ||= {};
   db.grants ||= {}; db.manualSales ||= []; db.ledger ||= []; db.aiSpend ||= {};
+  db.processedEvents ||= {};
   db.announcement ||= { text: '', level: 'info', enabled: false, updatedAt: null };
   return db;
 };
@@ -295,7 +304,7 @@ function newUser({ name, email, password, plan = 'free', terms = null }) {
     hash: hashPassword(password),
     created: new Date().toISOString(),
     // With no email delivery configured, do not claim a link was sent or gate the UI on it.
-    emailVerified: !MAIL_WEBHOOK_URL,
+    emailVerified: !mailEnabled(),
     licenseKey: issued.key,
     invoices: [],
     subscription: null,
@@ -396,23 +405,78 @@ function rateLimit(req, name) {
   if (hit.n > 20) throw fail('rate_limited', 429, 'Too many attempts. Wait a minute and try again.');
 }
 
+const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+function tokenLink(type, token) {
+  return `${SITE_URL}confirm.html?type=${encodeURIComponent(type)}&token=${encodeURIComponent(token)}`;
+}
+
+function mailMessage(type, link) {
+  const safe = escHtml(link);
+  if (type === 'reset') {
+    return {
+      subject: 'Reset your Wicked Imgui password',
+      text: `Use this link within 1 hour to choose a new Wicked Imgui password:\n\n${link}\n\nIf you did not ask for this, ignore this email.\n`,
+      html: `<div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:auto;color:#e7e9ee;background:#0b0c0e;padding:28px;border-radius:12px">
+  <h1 style="font-size:20px;margin:0 0 12px">Reset your password</h1>
+  <p style="color:#a8adb8;line-height:1.6">We received a request to reset the password for your Wicked Imgui account. This link expires in 1 hour.</p>
+  <p style="margin:24px 0"><a href="${safe}" style="background:#7c5cff;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;display:inline-block;font-weight:600">Choose a new password</a></p>
+  <p style="color:#7d8390;font-size:13px;line-height:1.6">If you did not ask for this, you can ignore this email. If the button doesn’t work, copy this link into your browser:<br><span style="word-break:break-all">${safe}</span></p>
+</div>`,
+    };
+  }
+  return {
+    subject: 'Confirm your Wicked Imgui email',
+    text: `Confirm your email address for Wicked Imgui:\n\n${link}\n\nIf you did not create this account, ignore this email.\n`,
+    html: `<div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:auto;color:#e7e9ee;background:#0b0c0e;padding:28px;border-radius:12px">
+  <h1 style="font-size:20px;margin:0 0 12px">Confirm your email</h1>
+  <p style="color:#a8adb8;line-height:1.6">Thanks for signing up. Confirm your address to finish setting up your Wicked Imgui account.</p>
+  <p style="margin:24px 0"><a href="${safe}" style="background:#7c5cff;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;display:inline-block;font-weight:600">Confirm email</a></p>
+  <p style="color:#7d8390;font-size:13px;line-height:1.6">If you did not create this account, ignore this email. If the button doesn’t work, copy this link into your browser:<br><span style="word-break:break-all">${safe}</span></p>
+</div>`,
+  };
+}
+
 async function deliverToken(db, type, email, ttl) {
   const token = crypto.randomBytes(24).toString('base64url');
   db.tokens[token] = { email, type, expires: new Date(Date.now() + ttl).toISOString() };
   writeAccounts(db);
-  if (DEV_MAIL_TOKENS) console.log(`${type} token for ${email}: ${token}`);
-  if (!MAIL_WEBHOOK_URL) return { token, delivery: 'not_configured' };
-  try {
-    await fetch(MAIL_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: email, type, token, app: 'Wicked Imgui' }),
-      signal: AbortSignal.timeout(5000),
-    });
-    return { token, delivery: 'sent' };
-  } catch {
-    return { token, delivery: 'failed' };
+  const link = tokenLink(type, token);
+  if (DEV_MAIL_TOKENS) console.log(`${type} link for ${email}: ${link}`);
+  if (!mailEnabled()) return { token, link, delivery: 'not_configured' };
+  const msg = mailMessage(type, link);
+  let delivered = false;
+  if (RESEND_API_KEY) {
+    try {
+      const r = await fetch(RESEND_API_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: MAIL_FROM,
+          to: [email],
+          subject: msg.subject,
+          text: msg.text,
+          html: msg.html,
+          ...(MAIL_REPLY_TO ? { reply_to: MAIL_REPLY_TO } : {}),
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+      delivered = r.ok;
+      if (!delivered) console.error('Mail delivery failed:', r.status, (await r.text()).slice(0, 300));
+    } catch (e) { console.error('Mail delivery error:', e && e.message); }
+  } else if (MAIL_WEBHOOK_URL) {
+    try {
+      const r = await fetch(MAIL_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: email, type, token, link, subject: msg.subject, text: msg.text, html: msg.html, app: 'Wicked Imgui' }),
+        signal: AbortSignal.timeout(5000),
+      });
+      delivered = r.ok;
+      if (!delivered) console.error('Mail webhook failed:', r.status);
+    } catch (e) { console.error('Mail webhook error:', e && e.message); }
   }
+  return { token, link, delivery: delivered ? 'sent' : 'failed' };
 }
 function useToken(db, token, type) {
   const rec = db.tokens[String(token || '')];
@@ -615,12 +679,15 @@ function addInvoice(u, data) {
     url: 'invoice.html?id=' + encodeURIComponent(id),
   });
 }
-function applyBillingEvent(event) {
+function applyBillingEvent(event, dedupeKey = '') {
   const type = String(event.type || '').toLowerCase();
   const data = event.data?.object || event.data || event;
   const email = normalEmail(data.email || data.customer_email || data.metadata?.wicked_email || data.metadata?.account_email || data.customer?.email);
   if (!email) return { ignored: 'no_email' };
   const db = readAccounts();
+  // Payment providers retry deliveries. Never apply the same event twice: a repeated
+  // "paid" would otherwise push renewsAt forward and grant another month for free.
+  if (dedupeKey && db.processedEvents[dedupeKey]) return { ok: true, duplicate: true };
   const u = db.users[email];
   if (!u) return { ignored: 'no_account' };
   if (/refund|chargeback/.test(type)) {
@@ -647,8 +714,24 @@ function applyBillingEvent(event) {
   } else {
     return { ignored: 'unknown_type' };
   }
+  if (dedupeKey) {
+    db.processedEvents[dedupeKey] = new Date().toISOString();
+    const cutoff = Date.now() - 90 * 86400000;
+    for (const [k, at] of Object.entries(db.processedEvents)) {
+      if (new Date(at).getTime() < cutoff) delete db.processedEvents[k];
+    }
+  }
   writeAccounts(db);
   return { ok: true, account: email };
+}
+
+/** Stable key for a provider delivery, so retries are harmless but new periods are not. */
+function billingEventKey(event) {
+  const raw = event?.data?.object || event?.data || event || {};
+  const type = String(event?.type || '').toLowerCase();
+  const id = raw.id || raw.subscription_id || raw.transaction_id || raw.payment_id || raw.order_id || raw.invoice_id || '';
+  const stamp = raw.date ?? raw.date_created ?? raw.date_subscription_started ?? raw.created_at ?? '';
+  return [type, String(id), String(stamp)].join('|');
 }
 
 // ---------------------------------------------------------------- static files
@@ -1028,7 +1111,7 @@ async function api(req, res, p, body, raw) {
     let event;
     try { event = JSON.parse(raw); } catch { throw fail('invalid_request', 400, 'Webhook body is not JSON.'); }
     verifyWebhook(req, raw, event);
-    return applyBillingEvent(normalizeBillingEvent(event));
+    return applyBillingEvent(normalizeBillingEvent(event), billingEventKey(event));
   }
 
   // public status/feed (also served to signed-out browsers)
@@ -1058,6 +1141,8 @@ async function api(req, res, p, body, raw) {
     rememberDevice(u, req);
     db.users[email] = u;
     applyPendingGrants(db, u, req, 'registration');
+    // Send the confirmation link at signup, not only when the user asks to resend it.
+    if (mailEnabled()) await deliverToken(db, 'verify', email, 86400000);
     startSession(res, db, email);
     return publicAccount(u);
   }
