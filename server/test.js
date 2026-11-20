@@ -515,10 +515,82 @@ const register = (email, password, extra = {}) => post('/v1/auth/register', { na
   const resetReused = await post('/v1/auth/password-reset/confirm', { token: resetToken, password: 'yet-another-password' });
   check('reset token cannot be reused', resetReused.status === 400 && resetReused.body.error === 'invalid_token');
   sink.close();
+
+  // ---- managed persistence: an account survives a full server restart
+  const dbPort = 8794;
+  const remoteRows = new Map();
+  const dbSink = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://localhost');
+    if (req.method === 'GET' && url.pathname === '/rest/v1/wicked_state') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify([...remoteRows.entries()].map(([id, data]) => ({ id, data }))));
+    }
+    if (req.method === 'POST' && url.pathname === '/rest/v1/wicked_state') {
+      let raw = '';
+      req.on('data', (chunk) => { raw += chunk; });
+      req.on('end', () => {
+        try {
+          for (const row of JSON.parse(raw)) remoteRows.set(String(row.id), row.data || {});
+          res.writeHead(201, { 'Content-Type': 'application/json' });
+          res.end('[]');
+        } catch { res.writeHead(400); res.end('{}'); }
+      });
+      return;
+    }
+    res.writeHead(404); res.end('{}');
+  });
+  await new Promise((resolve) => dbSink.listen(dbPort, '127.0.0.1', resolve));
+  const remoteEnv = {
+    ...process.env,
+    ...NO_MAIL,
+    LICENSE_SECRET: 'test-secret-do-not-use',
+    BILLING_PROVIDER: 'generic',
+    STORAGE_BACKEND: 'supabase',
+    SUPABASE_URL: `http://127.0.0.1:${dbPort}`,
+    SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
+  };
+  const spawnRemote = (port, suffix) => {
+    const child = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
+      env: {
+        ...remoteEnv,
+        PORT: String(port),
+        DATA_FILE: dataFile + suffix,
+        ACCOUNTS_FILE: accountsFile + suffix,
+        AUDIT_FILE: prefix + '-audit' + suffix + '.jsonl',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    spawned.push(child);
+    child.stderr.on('data', (d) => process.stderr.write(d));
+    return child;
+  };
+  const waitForHealth = async (base) => {
+    for (let i = 0; i < 60; i++) {
+      try { await fetch(base + '/health'); return; } catch { await new Promise((r) => setTimeout(r, 100)); }
+    }
+  };
+  const remoteA = spawnRemote(8795, '.remote-a');
+  const remoteBaseA = 'http://127.0.0.1:8795';
+  await waitForHealth(remoteBaseA);
+  BASE = remoteBaseA;
+  const persisted = await register('persist@example.com', 'a-long-persistent-password');
+  check('managed store accepts registration', persisted.status === 200 && persisted.body.user?.email === 'persist@example.com');
+  await new Promise((r) => setTimeout(r, 400));
+  check('managed store holds account snapshot', remoteRows.has('accounts') && !!remoteRows.get('accounts')?.users?.['persist@example.com']);
+  remoteA.kill();
+  await new Promise((r) => setTimeout(r, 300));
+  const remoteB = spawnRemote(8796, '.remote-b');
+  const remoteBaseB = 'http://127.0.0.1:8796';
+  await waitForHealth(remoteBaseB);
+  BASE = remoteBaseB;
+  const afterRestart = await post('/v1/auth/login', { email: 'persist@example.com', password: 'a-long-persistent-password' });
+  check('account survives a full server restart', afterRestart.status === 200 && afterRestart.body.user?.email === 'persist@example.com', `${afterRestart.status}/${afterRestart.body.error || ''}`);
+  dbSink.close();
   BASE = `http://127.0.0.1:${PORT}`;
 
   for (const c of spawned) c.kill();
-  for (const f of [dataFile, accountsFile, ...files2, ...files3, ...files4, ...files5]) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
+  for (const f of [dataFile, accountsFile, ...files2, ...files3, ...files4, ...files5,
+    dataFile + '.remote-a', accountsFile + '.remote-a', dataFile + '.remote-b', accountsFile + '.remote-b']) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
   for (const f of [prefix + '-audit.jsonl', prefix + '-audit-noadmin.jsonl']) { try { fs.unlinkSync(f); } catch { /* ignore */ } }
   const failed = results.filter((r) => !r.pass);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);

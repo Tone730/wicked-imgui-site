@@ -33,7 +33,7 @@ jobs:
         run: node tools/set-api-host.js --api "$API_BASE"
 
       - name: Check CommonJS tooling syntax
-        run: node --check server/server.js && node --check tools/set-api-host.js && node --check tools/set-checkout-urls.js
+        run: node --check server/server.js && node --check tools/set-api-host.js && node --check tools/set-checkout-urls.js && node --check tools/import-state.js
 
       # Catch broken account, billing, credit, admin and email flows before deploy.
       - name: Run server tests

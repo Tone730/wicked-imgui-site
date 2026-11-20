@@ -114,6 +114,18 @@ const MAX_KEY_DEVICES = Math.min(10, Math.max(1, Number(process.env.MAX_KEY_DEVI
 const TERMS_VERSION = process.env.TERMS_VERSION || '2026-11-19';
 const PRIVACY_VERSION = process.env.PRIVACY_VERSION || '2026-11-19';
 const isDev = SECRET.startsWith('wicked-imgui-DEV');
+// Optional managed persistence. Supabase's REST API needs no npm package: the whole
+// store is a single jsonb row per collection. File storage stays the default so a
+// local run needs no account or network.
+const STORAGE_BACKEND = (process.env.STORAGE_BACKEND || 'file').toLowerCase();
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const SUPABASE_TABLE = process.env.SUPABASE_TABLE || 'wicked_state';
+const remote = STORAGE_BACKEND === 'supabase';
+if (remote && (!SUPABASE_URL || !SUPABASE_KEY)) {
+  console.error('STORAGE_BACKEND=supabase needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+  process.exit(1);
+}
 
 if (isDev) console.warn('⚠  LICENSE_SECRET is the dev default. Set a real secret before exposing this server.');
 fs.mkdirSync(path.dirname(DATA), { recursive: true });
@@ -121,10 +133,64 @@ fs.mkdirSync(path.dirname(ACCOUNTS_FILE), { recursive: true });
 fs.mkdirSync(path.dirname(AUDIT_FILE), { recursive: true });
 
 // ---------------------------------------------------------------- storage
+const memory = new Map();
+const storeKeyFor = (file) => (remote
+  ? (file === ACCOUNTS_FILE ? 'accounts' : file === DATA ? 'licenses' : file === AUDIT_FILE ? 'audit' : '')
+  : '');
+const supabaseHeaders = (extra = {}) => ({
+  apikey: SUPABASE_KEY,
+  Authorization: 'Bearer ' + SUPABASE_KEY,
+  'Content-Type': 'application/json',
+  ...extra,
+});
+
+/** Load once at boot. Writes are applied to memory immediately and flushed shortly after. */
+async function remoteLoad() {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${encodeURIComponent(SUPABASE_TABLE)}?select=id,data`, {
+    headers: supabaseHeaders(),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!r.ok) throw new Error(`Managed store load failed: ${r.status} ${(await r.text()).slice(0, 300)}`);
+  for (const row of await r.json()) memory.set(String(row.id), row.data || {});
+  console.log(`Managed store connected (${memory.size || 0} collections).`);
+}
+let flushTimer = null;
+function scheduleFlush() {
+  if (!remote || flushTimer) return;
+  flushTimer = setTimeout(() => { flushTimer = null; void flushRemote(); }, 150);
+  flushTimer.unref?.();
+}
+async function flushRemote() {
+  if (!remote) return;
+  const rows = [...memory.entries()].map(([id, data]) => ({ id, data, updated_at: new Date().toISOString() }));
+  if (!rows.length) return;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${encodeURIComponent(SUPABASE_TABLE)}?on_conflict=id`, {
+      method: 'POST',
+      headers: supabaseHeaders({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify(rows),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) console.error('Managed store save failed:', r.status, (await r.text()).slice(0, 300));
+  } catch (err) { console.error('Managed store save error:', err && err.message); }
+}
+if (remote) {
+  for (const signal of ['SIGTERM', 'SIGINT']) {
+    process.once(signal, () => { void flushRemote().finally(() => process.exit(0)); });
+  }
+}
+
 function readFile(file, fallback) {
+  const key = storeKeyFor(file);
+  if (key) {
+    if (!memory.has(key)) memory.set(key, fallback);
+    return memory.get(key);
+  }
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
 }
 function writeFile(file, db) {
+  const key = storeKeyFor(file);
+  if (key) { memory.set(key, db); scheduleFlush(); return; }
   const tmp = file + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
   fs.renameSync(tmp, file);
@@ -178,18 +244,29 @@ function audit(action, detail = {}, req, actor = 'system') {
       ip: req?.socket?.remoteAddress || '',
       ua: String(req?.headers?.['user-agent'] || '').slice(0, 160),
     };
-    fs.appendFileSync(AUDIT_FILE, JSON.stringify(entry) + '\n');
-    if (++auditLines % 200 === 0) {
-      const lines = fs.readFileSync(AUDIT_FILE, 'utf8').split('\n').filter(Boolean);
-      if (lines.length > 5000) fs.writeFileSync(AUDIT_FILE, lines.slice(-5000).join('\n') + '\n');
+    if (remote) {
+      const store = memory.get('audit') || { lines: [] };
+      store.lines ||= [];
+      store.lines.push(JSON.stringify(entry));
+      if (store.lines.length > 5000) store.lines = store.lines.slice(-5000);
+      writeFile(AUDIT_FILE, store);
+    } else {
+      fs.appendFileSync(AUDIT_FILE, JSON.stringify(entry) + '\n');
+      if (++auditLines % 200 === 0) {
+        const lines = readAuditLines();
+        if (lines.length > 5000) fs.writeFileSync(AUDIT_FILE, lines.slice(-5000).join('\n') + '\n');
+      }
     }
   } catch (err) {
     console.warn('Audit write failed:', err.message);
   }
 }
+function readAuditLines() {
+  if (remote) return [...(memory.get('audit')?.lines || [])];
+  try { return fs.readFileSync(AUDIT_FILE, 'utf8').split('\n').filter(Boolean); } catch { return []; }
+}
 function readAudit({ limit = 100, action = '', actor = '', q = '' } = {}) {
-  let lines;
-  try { lines = fs.readFileSync(AUDIT_FILE, 'utf8').split('\n').filter(Boolean); } catch { return []; }
+  const lines = readAuditLines();
   const needle = String(q || '').trim().toLowerCase();
   const rows = [];
   for (let i = lines.length - 1; i >= 0 && rows.length < limit; i--) {
@@ -1344,4 +1421,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () => console.log(`Wicked Imgui account + license server → http://${HOST}:${PORT}`));
+(async () => {
+  if (remote) await remoteLoad();
+  server.listen(PORT, HOST, () => console.log(`Wicked Imgui account + license server → http://${HOST}:${PORT}`));
+})().catch((err) => { console.error('Server startup failed:', err.message); process.exit(1); });

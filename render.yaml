@@ -59,6 +59,18 @@ services:
         sync: false
       - key: DEV_MAIL_TOKENS
         value: '0'
+      # Daily admin account (role is also granted at registration).
+      - key: ADMIN_EMAILS
+        value: wickz77r@gmail.com
+      # Managed persistence. Create the table in server/supabase.sql, then set
+      # STORAGE_BACKEND=supabase and the two secrets in the Render dashboard.
+      # Until then the server uses local JSON files as before.
+      - key: STORAGE_BACKEND
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
     # Render disks are a paid add-on. Without one, set DATA_FILE/ACCOUNTS_FILE
     # to a path on the ephemeral filesystem and expect data loss on redeploy.
     # disk:

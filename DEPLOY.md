@@ -55,6 +55,9 @@ Use this when the dashboard is on GitHub Pages / Cloudflare Pages and the API is
 | `SITE_URL` | `https://tone730.github.io/wicked-imgui-site/` | Base URL for links in emails |
 | `MAIL_WEBHOOK_URL` | optional HTTPS endpoint | Alternative to Resend; receives `{to,type,token,link,subject,text,html}` |
 | `DEV_MAIL_TOKENS` | `1` only locally | Prints confirmation links to the server console |
+| `STORAGE_BACKEND` | `supabase` or `file` | Managed persistence; default `file` stays local |
+| `SUPABASE_URL` | `https://PROJECT.supabase.co` | REST base URL for the managed store |
+| `SUPABASE_SERVICE_ROLE_KEY` | service role key | Write access to the private state table; keep it secret |
 
 ### Email setup (Resend, free tier)
 
@@ -67,7 +70,14 @@ A generic `MAIL_WEBHOOK_URL` is supported instead of Resend for people who alrea
 
 If both `ADMIN_EMAILS` and `ADMIN_TOKEN` are empty, all `/admin/api/*` routes return `503 admin_unconfigured`. The standalone `admin.html` panel signs in with an admin account session by default; its token field is runtime-only and saved to browser `sessionStorage`, never to a source file.
 
-Without a persistent disk, accounts and keys are lost on redeploy — that is a limitation of the free plan, not of the code. Render disks are a paid add-on; if you do not add one, say so plainly on your support page rather than implying accounts are permanent.
+### Managed persistence (Supabase, free tier)
+
+1. Create a Supabase project. In the SQL editor run [`server/supabase.sql`](server/supabase.sql). It creates one private table, `wicked_state`, with a `jsonb` column; RLS is on and only the service role can read or write it.
+2. On the API host set `STORAGE_BACKEND=supabase`, `SUPABASE_URL=https://PROJECT.supabase.co` and `SUPABASE_SERVICE_ROLE_KEY`. Restart. The server loads accounts, license keys and the audit log from the table at boot and writes changes back within ~150 ms (and on shutdown).
+3. If you already have accounts in local JSON files, run `node tools/import-state.js` once before switching (add `--force` to overwrite an existing table). Register a test account, restart the service, then log in with the same account. If that works, persistence is live. Keep `DATA_FILE`/`ACCOUNTS_FILE` paths as-is — they are only used in `file` mode.
+4. Run one API instance. The store is a last-write-wins snapshot per collection; two concurrent instances would overwrite each other. Render free/Starter uses one instance.
+
+With `STORAGE_BACKEND=file` and no persistent disk, accounts and keys are lost on redeploy — that is a limitation of the free plan, not of the code. If you stay on file storage, say so plainly on your support page rather than implying accounts are permanent.
 
 `PUBLIC_API_BASE` is only needed when the API also serves the static files but the browser should call an external origin instead. The Pages workflow normally handles the URL at build time.
 
