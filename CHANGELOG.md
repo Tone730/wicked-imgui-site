@@ -5,6 +5,15 @@ Every `- [Tag] text` bullet becomes one `changes` entry in `js/release.js`.
 Keep the bullets on a single line. When a section for the version being published
 does not exist, the pipeline keeps the existing `changes` array unchanged.
 
+## [2.10.0] - 2026-11-20
+
+- [Kits] Added three more MIT-sourced ImThemes kits — Everforest, Discord Dark and Purple Comfy — with exact rgba() palette/style boards, global presets, editable premades and verbatim upstream licence texts (25 kits, 48 presets, 28 premades, 124 visual boards).
+- [Buttons] Added five button style presets sourced from current ImGui/Material/glass patterns: Velvet, Material, Squircle, Glass button and Link button. All are editable style fragments on the existing button widget; no new runtime dependency.
+- [Templates] Added four project templates: Command palette, Release notes, Update loader and Maintenance loader. They use only checked-in widgets/actions and preserve all generated markers.
+- [AI] Added three offline prompts and 58 new lexicon controls from the new source-derived kit boards. Local AI still works with no key, sign-in or network.
+- [Credits] Regenerated `THIRD-PARTY-NOTICES.txt` and the in-app licence lookup; 16 MIT texts now ship, while the 9 archive samples remain explicitly unlicensed notices.
+- [Quality] `npm test` is green: 777 regression checks, 34 AI-contract checks, validation, updater tests, 81 server tests, 6 export compiles and 124 kit boards. No release published from this change yet.
+
 ## [2.9.2] - 2026-11-20
 
 - [Quality] Folded all 118 kit-board visual baselines into the main regression gate (now 745 checks) and added a single `npm test` command; the PNG harness stays standalone for `--update` baseline regeneration.

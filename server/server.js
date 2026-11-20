@@ -1457,6 +1457,7 @@ const server = http.createServer(async (req, res) => {
         ok: true, service: 'wicked-imgui-server', version: 2, devSecret: isDev, accounts: true,
         mail: deliveryState.provider, mailEnabled: mailEnabled(),
         mailSent: deliveryState.sent, mailFailed: deliveryState.failed, mailLastError: deliveryState.lastError,
+        storage: STORAGE_BACKEND,
       });
     }
     // The payment webhook authenticates with its own HMAC signature, so it has no browser
