@@ -12,7 +12,7 @@ export const RELEASE = {
   channel: 'stable',
   feedUrl: 'downloads/latest.json',
   electronFeedUrl: 'downloads/latest.yml',
-  notes: 'Added all 8 public online design kits as fully editable UI projects: ImJson theme demo, VISION overlay menu, dear-imgui-styles collection, ImguiCandy themes, UntitledImGuiTheme editor, Clean ImGui (Evicted), Lumin Free ImGui menu and the hello_imgui 17-theme library. 40 style presets, 20 premades and an expanded offline control lexicon with exact tabs, controls, slider ranges, palettes and font roles transcribed from each source. Fully local/offline: no sign-in, key or backend; all upstream sources analysed statically, no extracted code or binaries executed.',
+  notes: 'QA hardening release: all 118 visual baselines folded into the main gate, AI intent contract guard, Ed25519-signed update feed with fail-closed verification, Project Doctor parent-containment checks and an optional Playwright screenshot layer. Fully local/offline — no sign-in, key, installer or backend required.',
   // File name inside the downloads/ folder (relative to this site's root).
   file: 'WickedImgui-Portable-2.9.2.zip',
   kind: 'Portable ZIP — extract and run Wicked Imgui Maker.exe',
